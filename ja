@@ -5665,6 +5665,10 @@ do
     local OrionLib = _G.OrionLib
 
     task.wait(1)
+    
+    -- 起動時効果音（ACTION_SOUND）
+    PlayActionSound()
+    
     OrionLib:MakeNotification({
         Name = "🌸さくらhubV0.7🌸起動完了",
         Content = "123!",
@@ -5673,6 +5677,6 @@ do
     })
 
     print("==========================================")
-    print("🌸さくらhubV0.7🌸 少数バージョン(v0.7.2.132)")
+    print("🌸さくらhubV0.7🌸 少数バージョン(v0.7.2.133)")
     print("==========================================")
 end
