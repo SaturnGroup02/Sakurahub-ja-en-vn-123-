@@ -5666,13 +5666,13 @@ do
 
     task.wait(1)
     OrionLib:MakeNotification({
-        Name = "🌸さくらhubV0.7🌸 起動完了",
-        Content = "完全版 - 全機能正常動作",
+        Name = "🌸さくらhubV0.7🌸起動完了",
+        Content = "123!",
         Image = "rbxassetid://4483362458",
         Time = 5
     })
 
     print("==========================================")
-    print("🌸さくらhubV0.7🌸 完全版 (v0.7.2.132)")
+    print("🌸さくらhubV0.7🌸 少数バージョン(v0.7.2.132)")
     print("==========================================")
 end
