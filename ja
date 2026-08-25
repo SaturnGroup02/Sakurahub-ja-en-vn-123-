@@ -65,6 +65,58 @@ do
 end
 
 -- ============================================================================
+-- ブロック2.5: 音声定義と再生関数
+-- ============================================================================
+do
+    local SoundService = game:GetService("SoundService")
+
+    -- 音声ID定義
+    local ACTION_SOUND_ID = "rbxassetid://137505070991597"
+    local ERROR_SOUND_ID = "rbxassetid://82845990304289"
+    local OPEN_CLOSE_SOUND_ID = "rbxassetid://87437544236708"
+
+    -- 音量設定
+    local VOLUME_CONFIG = {
+        ACTION = 2.5,
+        ERROR = 5.0,
+        OPEN_CLOSE = 10.0
+    }
+
+    -- 音声再生関数
+    function PlaySound(soundId, volume)
+        pcall(function()
+            local sound = Instance.new("Sound")
+            sound.SoundId = soundId
+            sound.Volume = volume or 1.0
+            sound.Parent = SoundService
+            sound:Play()
+            task.delay(sound.TimeLength + 0.1, function()
+                sound:Destroy()
+            end)
+        end)
+    end
+
+    -- 用途別ラッパー関数
+    function PlayActionSound()
+        PlaySound(ACTION_SOUND_ID, VOLUME_CONFIG.ACTION)
+    end
+
+    function PlayErrorSound()
+        PlaySound(ERROR_SOUND_ID, VOLUME_CONFIG.ERROR)
+    end
+
+    function PlayOpenCloseSound()
+        PlaySound(OPEN_CLOSE_SOUND_ID, VOLUME_CONFIG.OPEN_CLOSE)
+    end
+
+    -- グローバル公開
+    _G.PlaySound = PlaySound
+    _G.PlayActionSound = PlayActionSound
+    _G.PlayErrorSound = PlayErrorSound
+    _G.PlayOpenCloseSound = PlayOpenCloseSound
+end
+
+-- ============================================================================
 -- ブロック3: UIウィンドウ作成
 -- ============================================================================
 do
