@@ -3183,7 +3183,7 @@ do
 end
 
 -- ============================================================================
--- ブロック28: 攻撃系タブ 4番目
+-- ブロック28: 攻撃系タブ 4番目（日本語完全対応版）
 -- ============================================================================
 do
     local Window = _G.Window
@@ -3195,46 +3195,66 @@ do
     local Workspace = _G.Workspace
     local UserInputService = _G.UserInputService
 
-    local AttackTab = Window:MakeTab({ Name = "攻撃系", Icon = "rbxassetid://4483345998", PremiumOnly = false })
+    local AttackTab = Window:MakeTab({ 
+        Name = "攻撃系", 
+        Icon = "rbxassetid://4483345998", 
+        PremiumOnly = false 
+    })
     
     AttackTab:AddParagraph("⚠️ 注意！", "悪用厳禁！")
     
-    AttackTab:AddSection({ Name = "KICK V1 (Blob Grab)" })
+    AttackTab:AddSection({ Name = "キックV1 (ブロブ掴み)" })
     
     local kickLoopEnabled = false
     local selectedKickPlayer = nil
 
     local function getPlayerTable()
         local players = {}
-        for _, player in ipairs(Players:GetPlayers()) do if player ~= LocalPlayer then table.insert(players, player.Name) end end
+        for _, player in ipairs(Players:GetPlayers()) do 
+            if player ~= LocalPlayer then 
+                table.insert(players, player.Name) 
+            end 
+        end
         return players
     end
 
     local playerDropdown = AttackTab:AddDropdown({
-        Name = "Target Player",
+        Name = "ターゲットプレイヤー",
         Default = "",
         Options = getPlayerTable(),
         Callback = function(value)
             selectedKickPlayer = Players:FindFirstChild(value)
-            OrionLib:MakeNotification({ Name = "Player Selected", Content = "Target: " .. value, Time = 2 })
+            OrionLib:MakeNotification({ 
+                Name = "プレイヤー選択", 
+                Content = "ターゲット: " .. value, 
+                Time = 2 
+            })
         end
     })
 
     AttackTab:AddButton({
-        Name = "Refresh Player List",
+        Name = "プレイヤーリスト更新",
         Callback = function()
             playerDropdown:Refresh(getPlayerTable())
-            OrionLib:MakeNotification({ Name = "Player List", Content = "Player list updated!", Time = 1 })
+            OrionLib:MakeNotification({ 
+                Name = "プレイヤーリスト", 
+                Content = "リストを更新しました！", 
+                Time = 1 
+            })
         end
     })
 
     local kickToggle = AttackTab:AddToggle({
-        Name = "Loop Kick V1 (grab + blob)",
+        Name = "ループキックV1 (掴み＋ブロブ)",
         Default = false,
         Callback = function(on)
             kickLoopEnabled = on
             if on and not selectedKickPlayer then
-                OrionLib:MakeNotification({ Name = "Error", Content = "Please select a target player first!", Time = 2 })
+                OrionLib:MakeNotification({ 
+                    Name = "エラー", 
+                    Content = "先にターゲットプレイヤーを選択してください！", 
+                    Time = 2 
+                })
                 kickToggle:SetValue(false)
                 return
             end
@@ -3242,17 +3262,29 @@ do
             local hum = char and char:FindFirstChild("Humanoid")
             local seat = hum and hum.SeatPart
             if on and (not seat or seat.Parent.Name ~= "CreatureBlobman") then
-                OrionLib:MakeNotification({ Name = "Error", Content = "You must be sitting on a blob creature!", Time = 2 })
+                OrionLib:MakeNotification({ 
+                    Name = "エラー", 
+                    Content = "ブロブクリーチャーに座っている必要があります！", 
+                    Time = 2 
+                })
                 kickToggle:SetValue(false)
                 return
             end
             if not on then
                 kickLoopEnabled = false
-                OrionLib:MakeNotification({ Name = "Loop Kick V1", Content = "Loop Kick stopped", Time = 1.5 })
+                OrionLib:MakeNotification({ 
+                    Name = "ループキックV1", 
+                    Content = "ループキックを停止しました", 
+                    Time = 1.5 
+                })
                 return
             end
 
-            OrionLib:MakeNotification({ Name = "Loop Kick V1", Content = "Started on: " .. selectedKickPlayer.Name, Time = 2 })
+            OrionLib:MakeNotification({ 
+                Name = "ループキックV1", 
+                Content = "開始: " .. selectedKickPlayer.Name, 
+                Time = 2 
+            })
 
             task.spawn(function()
                 local RS = ReplicatedStorage
@@ -3341,12 +3373,16 @@ do
                     blobRoot.Velocity = Vector3.zero
                 end
 
-                OrionLib:MakeNotification({ Name = "Loop Kick V1", Content = "Stopped", Time = 1.5 })
+                OrionLib:MakeNotification({ 
+                    Name = "ループキックV1", 
+                    Content = "停止しました", 
+                    Time = 1.5 
+                })
             end)
         end
     })
 
-    AttackTab:AddSection({ Name = "KICK V2 (Orbit & Grab)" })
+    AttackTab:AddSection({ Name = "キックV2 (軌道＆掴み)" })
 
     local orbitRunning = false
     local selectedOrbitTargetName = ""
@@ -3380,14 +3416,14 @@ do
     })
 
     AttackTab:AddButton({
-        Name = "プレイヤーリストを更新",
+        Name = "プレイヤーリスト更新",
         Callback = function()
             OrbitTargetDropdown:Refresh(getOrbitPlayerNames(), true)
         end
     })
 
     AttackTab:AddToggle({
-        Name = "drift kick V2",
+        Name = "ドリフトキックV2",
         Default = false,
         Callback = function(v)
             orbitRunning = v
@@ -3452,7 +3488,7 @@ do
                     if GE and grabRemote and dropRemote and ((lDet and lWeld) or (rDet and rWeld)) then
                         OrionLib:MakeNotification({
                             Name = "実行",
-                            Content = "drift kick V2 を開始します",
+                            Content = "ドリフトキックV2を開始します",
                             Time = 3
                         })
 
@@ -3585,7 +3621,7 @@ do
                     else
                         OrionLib:MakeNotification({
                             Name = "エラー",
-                            Content = "必要なRemoteEventやDetectorが見つかりません",
+                            Content = "必要なRemoteEventや検出器が見つかりません",
                             Time = 5
                         })
                         orbitRunning = false
@@ -3593,7 +3629,7 @@ do
                 else
                     OrionLib:MakeNotification({
                         Name = "エラー",
-                        Content = "Blobmanの取得・生成に失敗しました",
+                        Content = "ブロブマンの取得・生成に失敗しました",
                         Time = 3
                     })
                     orbitRunning = false
@@ -3739,30 +3775,30 @@ do
 
     local function KickSelectedV3Player()
         if isExecuting then
-            OrionLib:MakeNotification({Name = "Error", Content = "Already executing...", Time = 3})
+            OrionLib:MakeNotification({Name = "エラー", Content = "既に実行中です...", Time = 3})
             return
         end
         
         if not selectedV3Player then
-            OrionLib:MakeNotification({Name = "Error", Content = "Please select a player first", Time = 3})
+            OrionLib:MakeNotification({Name = "エラー", Content = "先にプレイヤーを選択してください", Time = 3})
             return
         end
         
         local targetPlayer = Players:FindFirstChild(selectedV3Player)
         if not targetPlayer then
-            OrionLib:MakeNotification({Name = "Error", Content = "Player not found", Time = 3})
+            OrionLib:MakeNotification({Name = "エラー", Content = "プレイヤーが見つかりません", Time = 3})
             return
         end
         
         local targetChar = targetPlayer.Character
         if not targetChar then
-            OrionLib:MakeNotification({Name = "Error", Content = "Target has no character", Time = 3})
+            OrionLib:MakeNotification({Name = "エラー", Content = "ターゲットにキャラクターがありません", Time = 3})
             return
         end
         
         local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
         if not targetRoot then
-            OrionLib:MakeNotification({Name = "Error", Content = "Target has no HumanoidRootPart", Time = 3})
+            OrionLib:MakeNotification({Name = "エラー", Content = "ターゲットにHumanoidRootPartがありません", Time = 3})
             return
         end
         
@@ -3773,7 +3809,7 @@ do
             if not blob then
                 blob = BlobmanBeta.spawnBlobman()
                 if not blob then
-                    OrionLib:MakeNotification({Name = "Error", Content = "Failed to spawn Blobman", Time = 5})
+                    OrionLib:MakeNotification({Name = "エラー", Content = "ブロブマンの生成に失敗しました", Time = 5})
                     return false
                 end
             end
@@ -3781,7 +3817,7 @@ do
             if not BlobmanBeta.isSittingOnBlobman() then
                 BlobmanBeta.ensureSitBlobman()
                 if not BlobmanBeta.isSittingOnBlobman() then
-                    OrionLib:MakeNotification({Name = "Error", Content = "Not sitting on Blobman", Time = 4})
+                    OrionLib:MakeNotification({Name = "エラー", Content = "ブロブマンに座っていません", Time = 4})
                     return false
                 end
             end
@@ -3797,7 +3833,7 @@ do
             end
             
             BlobmanBeta.destroyBlobman()
-            OrionLib:MakeNotification({Name = "Success", Content = "Kicked " .. targetPlayer.Name .. "!", Time = 5})
+            OrionLib:MakeNotification({Name = "成功", Content = targetPlayer.Name .. " をふっとばしました！", Time = 5})
             return true
         end
         
@@ -3806,7 +3842,7 @@ do
     end
 
     local V3PlayerDropdown = AttackTab:AddDropdown({
-        Name = "Select Player",
+        Name = "プレイヤーを選択",
         Options = {},
         Callback = function(value)
             selectedV3Player = value
@@ -3859,7 +3895,7 @@ do
         end
     })
 
-    AttackTab:AddSection({ Name = "Kick All" })
+    AttackTab:AddSection({ Name = "全員キック" })
 
     local currentBlob = nil
     local isKickAllActive = false
@@ -3890,7 +3926,7 @@ do
 
     local function ResetTargets()
         for id, status in pairs(playerStatus) do
-            if status == "Targeting" then playerStatus[id] = nil end
+            if status == "標的中" then playerStatus[id] = nil end
         end
     end
 
@@ -3911,7 +3947,7 @@ do
         end
 
         for _, targetPlayer in ipairs(allPlayers) do
-            playerStatus[targetPlayer.UserId] = "Targeting"
+            playerStatus[targetPlayer.UserId] = "標的中"
         end
         
         local rootPart = GetMyRoot()
@@ -4017,7 +4053,7 @@ do
 
         for _, targetPlayer in ipairs(allPlayers) do
             if targetPlayer and targetPlayer.Parent == Players then
-                playerStatus[targetPlayer.UserId] = "Kicked"
+                playerStatus[targetPlayer.UserId] = "キック済み"
             end
         end
 
@@ -4032,30 +4068,30 @@ do
     end
 
     AttackTab:AddButton({
-        Name = "Kick All",
+        Name = "全員キック",
         Callback = KickAll
     })
 
     AttackTab:AddToggle({
-        Name = "Whitelist Friends",
+        Name = "フレンドを除外",
         Default = false,
         Callback = function(Value)
             whitelistFriends = Value
         end    
     })
 
-    AttackTab:AddParagraph("Status", "Current status information")
-    local statusTargetLabel = AttackTab:AddLabel("Current Target V1: None")
-    local statusRunningLabel = AttackTab:AddLabel("Status V1: Stopped")
+    AttackTab:AddParagraph("ステータス", "現在の状態情報")
+    local statusTargetLabel = AttackTab:AddLabel("現在のターゲットV1: なし")
+    local statusRunningLabel = AttackTab:AddLabel("状態V1: 停止")
 
     task.spawn(function()
         while task.wait(1) do
             if selectedKickPlayer then
-                statusTargetLabel:Set("Current Target V1: " .. selectedKickPlayer.Name)
+                statusTargetLabel:Set("現在のターゲットV1: " .. selectedKickPlayer.Name)
             else
-                statusTargetLabel:Set("Current Target V1: None")
+                statusTargetLabel:Set("現在のターゲットV1: なし")
             end
-            statusRunningLabel:Set(kickLoopEnabled and "Status V1: Running" or "Status V1: Stopped")
+            statusRunningLabel:Set(kickLoopEnabled and "状態V1: 実行中" or "状態V1: 停止")
         end
     end)
 end
