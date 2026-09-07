@@ -1,5 +1,5 @@
 -- ============================================================================
--- 🌸さくらhubV0.7🌸 (v0.7.2.132)
+-- 🌸さくらhubV0.7🌸 (v0.7.2.135)
 -- ============================================================================
 
 -- ============================================================================
@@ -75,7 +75,7 @@ do
     local ERROR_SOUND_ID = "rbxassetid://82845990304289"
     local OPEN_CLOSE_SOUND_ID = "rbxassetid://87437544236708"
 
-    -- 音量設定
+    -- 音量設定（絶対に変更禁止）
     local VOLUME_CONFIG = {
         ACTION = 2.5,
         ERROR = 5.0,
@@ -88,10 +88,24 @@ do
             local sound = Instance.new("Sound")
             sound.SoundId = soundId
             sound.Volume = volume or 1.0
-            sound.Parent = SoundService
+            sound.Parent = game:GetService("SoundService")
+            
+            if not sound.IsLoaded then
+                sound.Loaded:Wait()
+            end
+            
             sound:Play()
-            task.delay(sound.TimeLength + 0.1, function()
+            
+            local conn
+            conn = sound.Ended:Connect(function()
+                if conn then conn:Disconnect() end
                 sound:Destroy()
+            end)
+            
+            task.delay(6, function()
+                if sound and sound.Parent then
+                    sound:Destroy()
+                end
             end)
         end)
     end
@@ -249,7 +263,6 @@ do
         }
     }
 
-    -- 縦型ハート設定（XY平面でハートを描く）
     SH.VerticalHeartConfig = {
         Enabled = false,
         Height = 5.0,
@@ -261,7 +274,6 @@ do
         FollowPlayer = true
     }
 
-    -- 縦型ビッグハート設定（XY平面でハートを描く）
     SH.VerticalBigHeartConfig = {
         Enabled = false,
         Height = 8.0,
@@ -492,13 +504,17 @@ do
         if not SH.PianoConfig.Keyboard then 
             SH.PianoConfig.Keyboard = getMusicKeyboard() 
         end
-        if not SH.PianoConfig.Keyboard then return end
+        if not SH.PianoConfig.Keyboard then 
+            PlayErrorSound()
+            return 
+        end
         
         if SH.PianoConfig.UpdateConnection then return end
 
         local mainPart = SH.PianoConfig.Keyboard:FindFirstChild("Main", true) or SH.PianoConfig.Keyboard.PrimaryPart
         if not mainPart then 
             warn("SakuraHub: ピアノのMainパーツが見つかりません")
+            PlayErrorSound()
             return 
         end
         
@@ -565,7 +581,10 @@ do
         if not targetKeyboard then 
             SH.PianoConfig.Keyboard = nil
             targetKeyboard = getMusicKeyboard()
-            if not targetKeyboard then return end
+            if not targetKeyboard then 
+                PlayErrorSound()
+                return 
+            end
         end
 
         local key = targetKeyboard:FindFirstChild(keyName, true)
@@ -586,6 +605,7 @@ do
         
         if not success or type(err) ~= "table" then
             warn("JSONデータの読み込みに失敗しました")
+            PlayErrorSound()
             OrionLib:MakeNotification({
                 Name = "エラー",
                 Content = "JSON形式が正しくありません",
@@ -637,7 +657,7 @@ do
 end
 
 -- ============================================================================
--- ブロック12: フェザー機能
+-- ブロック12: フェザー機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -652,6 +672,7 @@ do
     function toggleFeather(state)
         SH.FeatherConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
             if SH.BigHeartConfig.Enabled then _G.toggleBigHeart(false) end
@@ -670,6 +691,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.featherToys = findObjects()
+            if #SH.featherToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.FeatherConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.featherToys, SH.FeatherConfig.maxSparklers)
             SH.featherRowPoints = {}
             local halfCount = math.floor(count / 2)
@@ -740,6 +768,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "フェザー開始", Content = "オブジェクト数: " .. #SH.featherAssignedToys, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.featherLoopConn then SH.featherLoopConn:Disconnect(); SH.featherLoopConn = nil end
             for _, point in ipairs(SH.featherRowPoints) do
                 if point.part then point.part:Destroy() end
@@ -756,7 +785,7 @@ do
 end
 
 -- ============================================================================
--- ブロック13: 魔法陣機能
+-- ブロック13: 魔法陣機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -769,6 +798,7 @@ do
     function toggleMagicCircle(state)
         SH.MagicCircleConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
             if SH.BigHeartConfig.Enabled then _G.toggleBigHeart(false) end
@@ -810,6 +840,13 @@ do
                 end
             end
             
+            if foundCount == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.MagicCircleConfig.Enabled = false
+                return
+            end
+            
             SH.magicCircleTAccum = 0
             if SH.magicCircleLoopConn then SH.magicCircleLoopConn:Disconnect() end
             SH.magicCircleLoopConn = RunService.Heartbeat:Connect(function(dt)
@@ -841,6 +878,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "魔法陣開始", Content = "高さ: " .. SH.MagicCircleConfig.Height, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.magicCircleLoopConn then SH.magicCircleLoopConn:Disconnect(); SH.magicCircleLoopConn = nil end
             for _, rec in ipairs(SH.magicCircleList) do
                 if rec.part then
@@ -857,7 +895,7 @@ do
 end
 
 -- ============================================================================
--- ブロック14: ハート機能（横方向・地面に水平 / XZ平面）
+-- ブロック14: ハート機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -872,6 +910,7 @@ do
     function toggleHeart(state)
         SH.HeartConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.BigHeartConfig.Enabled then _G.toggleBigHeart(false) end
@@ -890,6 +929,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.heartToys = findObjects()
+            if #SH.heartToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.HeartConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.heartToys, SH.HeartConfig.ObjectCount)
             SH.heartPoints = {}
             for i = 1, count do
@@ -931,7 +977,6 @@ do
                         local x = 16 * (math.sin(currentAngle) ^ 3) * baseScale
                         local y = (13 * math.cos(currentAngle) - 5 * math.cos(2*currentAngle) - 2 * math.cos(3*currentAngle) - math.cos(4*currentAngle)) * baseScale
                         if pulseEffect > 0 then local pf = 1 + (pulseEffect * 0.1); x = x * pf; y = y * pf end
-                        -- 横ハート: XZ平面（地面に水平）
                         local targetPosition = basePosition + Vector3.new(x, SH.HeartConfig.Height + math.sin(currentAngle * 2) * 0.5, y)
                         if point.part then point.part.Position = targetPosition end
                         toy.BP.Position = targetPosition
@@ -941,6 +986,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "ハート開始", Content = "サイズ: " .. SH.HeartConfig.Size, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.heartLoopConn then SH.heartLoopConn:Disconnect(); SH.heartLoopConn = nil end
             for _, point in ipairs(SH.heartPoints) do
                 if point.part then point.part:Destroy() end
@@ -957,7 +1003,7 @@ do
 end
 
 -- ============================================================================
--- ブロック15: ビッグハート機能（横方向・地面に水平 / XZ平面）
+-- ブロック15: ビッグハート機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -972,6 +1018,7 @@ do
     function toggleBigHeart(state)
         SH.BigHeartConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -990,6 +1037,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.bigHeartToys = findObjects()
+            if #SH.bigHeartToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.BigHeartConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.bigHeartToys, SH.BigHeartConfig.ObjectCount)
             SH.bigHeartPoints = {}
             for i = 1, count do
@@ -1031,7 +1085,6 @@ do
                         local x = 16 * (math.sin(currentAngle) ^ 3) * baseScale * SH.BigHeartConfig.HeartScale
                         local y = (13 * math.cos(currentAngle) - 5 * math.cos(2*currentAngle) - 2 * math.cos(3*currentAngle) - math.cos(4*currentAngle)) * baseScale * SH.BigHeartConfig.HeartScale * SH.BigHeartConfig.VerticalStretch
                         if pulseEffect > 0 then local pf = 1 + (pulseEffect * 0.1); x = x * pf; y = y * pf end
-                        -- 横ビッグハート: XZ平面（地面に水平）
                         local targetPosition = basePosition + Vector3.new(x, SH.BigHeartConfig.Height + math.sin(currentAngle * 2) * 1.0, y)
                         if point.part then point.part.Position = targetPosition end
                         toy.BP.Position = targetPosition
@@ -1041,6 +1094,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "ビッグハート開始", Content = "サイズ: " .. SH.BigHeartConfig.Size, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.bigHeartLoopConn then SH.bigHeartLoopConn:Disconnect(); SH.bigHeartLoopConn = nil end
             for _, point in ipairs(SH.bigHeartPoints) do
                 if point.part then point.part:Destroy() end
@@ -1057,7 +1111,7 @@ do
 end
 
 -- ============================================================================
--- ブロック16: ダビデの星機能
+-- ブロック16: ダビデの星機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1072,6 +1126,7 @@ do
     function toggleStarOfDavid(state)
         SH.StarOfDavidConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1090,6 +1145,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.starOfDavidToys = findObjects()
+            if #SH.starOfDavidToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.StarOfDavidConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.starOfDavidToys, SH.StarOfDavidConfig.ObjectCount)
             SH.starOfDavidPoints = {}
             for i = 1, count do
@@ -1140,6 +1202,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "ダビデの星開始", Content = "サイズ: " .. SH.StarOfDavidConfig.Size, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.starOfDavidLoopConn then SH.starOfDavidLoopConn:Disconnect(); SH.starOfDavidLoopConn = nil end
             for _, point in ipairs(SH.starOfDavidPoints) do
                 if point.part then point.part:Destroy() end
@@ -1156,7 +1219,7 @@ do
 end
 
 -- ============================================================================
--- ブロック17: スター機能
+-- ブロック17: スター機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1171,6 +1234,7 @@ do
     function toggleStar(state)
         SH.StarConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1189,6 +1253,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.starToys = findObjects()
+            if #SH.starToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.StarConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.starToys, SH.StarConfig.ObjectCount)
             SH.starPoints = {}
             for i = 1, count do
@@ -1240,6 +1311,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "スター開始", Content = "外側半径: " .. SH.StarConfig.OuterRadius, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.starLoopConn then SH.starLoopConn:Disconnect(); SH.starLoopConn = nil end
             for _, point in ipairs(SH.starPoints) do
                 if point.part then point.part:Destroy() end
@@ -1256,7 +1328,7 @@ do
 end
 
 -- ============================================================================
--- ブロック18: スター2機能
+-- ブロック18: スター2機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1271,6 +1343,7 @@ do
     function toggleStar2(state)
         SH.Star2Config.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1289,6 +1362,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.star2Toys = findObjects()
+            if #SH.star2Toys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.Star2Config.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.star2Toys, SH.Star2Config.ObjectCount)
             SH.star2Points = {}
             for i = 1, count do
@@ -1349,6 +1429,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "スター2開始", Content = "サイズ: " .. SH.Star2Config.Size, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.star2LoopConn then SH.star2LoopConn:Disconnect(); SH.star2LoopConn = nil end
             for _, point in ipairs(SH.star2Points) do
                 if point.part then point.part:Destroy() end
@@ -1365,7 +1446,7 @@ do
 end
 
 -- ============================================================================
--- ブロック19: 球体機能
+-- ブロック19: 球体機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1380,6 +1461,7 @@ do
     function toggleSphere(state)
         SH.SphereConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1398,6 +1480,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.sphereToys = findObjects()
+            if #SH.sphereToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.SphereConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.sphereToys, SH.SphereConfig.ObjectCount)
             SH.spherePoints = {}
             for i = 1, count do
@@ -1454,6 +1543,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "球体開始", Content = "半径: " .. SH.SphereConfig.Radius, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.sphereLoopConn then SH.sphereLoopConn:Disconnect(); SH.sphereLoopConn = nil end
             for _, point in ipairs(SH.spherePoints) do
                 if point.part then point.part:Destroy() end
@@ -1470,7 +1560,7 @@ do
 end
 
 -- ============================================================================
--- ブロック20: 観覧車機能
+-- ブロック20: 観覧車機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1485,6 +1575,7 @@ do
     function toggleFerrisWheel(state)
         SH.FerrisWheelConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1503,6 +1594,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.ferrisWheelToys = findObjects()
+            if #SH.ferrisWheelToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.FerrisWheelConfig.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.ferrisWheelToys, SH.FerrisWheelConfig.ObjectCount)
             local angleStep = (2 * math.pi) / count
             SH.ferrisWheelPoints = {}
@@ -1564,6 +1662,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "観覧車開始", Content = "半径: " .. SH.FerrisWheelConfig.Radius, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.ferrisWheelLoopConn then SH.ferrisWheelLoopConn:Disconnect(); SH.ferrisWheelLoopConn = nil end
             for _, point in ipairs(SH.ferrisWheelPoints) do
                 if point.part then point.part:Destroy() end
@@ -1580,7 +1679,7 @@ do
 end
 
 -- ============================================================================
--- ブロック21: アニメーションN1,N2,N3
+-- ブロック21: アニメーションN1,N2,N3（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1595,6 +1694,7 @@ do
     function toggleAnimN1(state)
         SH.AnimN1Config.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1613,6 +1713,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.animN1Toys = findObjects()
+            if #SH.animN1Toys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.AnimN1Config.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.animN1Toys, SH.AnimN1Config.ObjectCount)
             SH.animN1Points = {}
             for i = 1, count do
@@ -1667,6 +1774,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "N1開始", Content = "オブジェクト数: " .. #SH.animN1AssignedToys, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.animN1LoopConn then SH.animN1LoopConn:Disconnect(); SH.animN1LoopConn = nil end
             for _, point in ipairs(SH.animN1Points) do
                 if point.part then point.part:Destroy() end
@@ -1685,6 +1793,7 @@ do
     function toggleAnimN2(state)
         SH.AnimN2Config.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1703,6 +1812,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.animN2Toys = findObjects()
+            if #SH.animN2Toys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.AnimN2Config.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.animN2Toys, SH.AnimN2Config.ObjectCount)
             SH.animN2Points = {}
             for i = 1, count do
@@ -1754,6 +1870,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "N2開始", Content = "オブジェクト数: " .. #SH.animN2AssignedToys, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.animN2LoopConn then SH.animN2LoopConn:Disconnect(); SH.animN2LoopConn = nil end
             for _, point in ipairs(SH.animN2Points) do
                 if point.part then point.part:Destroy() end
@@ -1772,6 +1889,7 @@ do
     function toggleAnimN3(state)
         SH.AnimN3Config.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1790,6 +1908,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
             
             SH.animN3Toys = findObjects()
+            if #SH.animN3Toys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.AnimN3Config.Enabled = false
+                return
+            end
+            
             local count = math.min(#SH.animN3Toys, SH.AnimN3Config.ObjectCount)
             SH.animN3Points = {}
             for i = 1, count do
@@ -1839,6 +1964,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "N3開始", Content = "オブジェクト数: " .. #SH.animN3AssignedToys, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.animN3LoopConn then SH.animN3LoopConn:Disconnect(); SH.animN3LoopConn = nil end
             for _, point in ipairs(SH.animN3Points) do
                 if point.part then point.part:Destroy() end
@@ -1856,7 +1982,7 @@ do
 end
 
 -- ============================================================================
--- ブロック22: 羽V2機能
+-- ブロック22: 羽V2機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -1869,6 +1995,7 @@ do
     function toggleWing(state)
         SH.WingConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -1921,6 +2048,13 @@ do
                         foundCount = foundCount + 1
                     end
                 end
+            end
+            
+            if foundCount == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.WingConfig.Enabled = false
+                return
             end
             
             SH.wingTime = 0
@@ -1984,6 +2118,7 @@ do
             end)
             OrionLib:MakeNotification({ Name = "羽V2開始", Content = "オブジェクト数: " .. #SH.wingList, Time = 3 })
         else
+            PlayOpenCloseSound()
             if SH.wingLoopConn then SH.wingLoopConn:Disconnect(); SH.wingLoopConn = nil end
             for _, rec in ipairs(SH.wingList) do
                 if rec.part then
@@ -2008,7 +2143,7 @@ do
 end
 
 -- ============================================================================
--- ブロック23: 土星スパークラー機能
+-- ブロック23: 土星スパークラー機能（エラー音追加）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -2154,6 +2289,7 @@ do
     function toggleSaturn(state)
         SH.SaturnConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -2172,6 +2308,13 @@ do
             if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
 
             rescanSaturn()
+            
+            if #SH.saturnList == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.SaturnConfig.Enabled = false
+                return
+            end
 
             if SH.saturnLoopConn then SH.saturnLoopConn:Disconnect(); SH.saturnLoopConn = nil end
             SH.saturnTAccum = 0
@@ -2237,6 +2380,7 @@ do
                 Time = 3
             })
         else
+            PlayOpenCloseSound()
             if SH.saturnLoopConn then SH.saturnLoopConn:Disconnect(); SH.saturnLoopConn = nil end
 
             for _, rec in ipairs(SH.saturnList) do
@@ -2275,7 +2419,7 @@ do
 end
 
 -- ============================================================================
--- ブロック24: ピアノ機能トグル
+-- ブロック24: ピアノ機能トグル（エラー音追加済み）
 -- ============================================================================
 do
     local SH = _G.SH
@@ -2288,6 +2432,7 @@ do
     function togglePiano(state)
         SH.PianoConfig.Enabled = state
         if state then
+            PlayActionSound()
             if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
             if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
             if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
@@ -2315,6 +2460,7 @@ do
                     Time = 3
                 })
             else
+                PlayErrorSound()
                 SH.PianoConfig.Enabled = false
                 OrionLib:MakeNotification({
                     Name = "エラー",
@@ -2323,6 +2469,7 @@ do
                 })
             end
         else
+            PlayOpenCloseSound()
             stopSong()
             stopPiano()
             OrionLib:MakeNotification({ Name = "ピアノ機能停止", Content = "ピアノ機能を無効化しました", Time = 2 })
@@ -2332,7 +2479,223 @@ do
 end
 
 -- ============================================================================
--- ブロック25: Me(=^・^=)タブ 1t
+-- ブロック25: 縦ハート機能（エラー音追加）
+-- ============================================================================
+do
+    local SH = _G.SH
+    local Workspace = _G.Workspace
+    local LocalPlayer = _G.LocalPlayer
+    local RunService = _G.RunService
+    local OrionLib = _G.OrionLib
+    local findObjects = _G.findObjects
+    local getPrimaryPart = _G.getPrimaryPart
+    local attachPhysics = _G.attachPhysics
+
+    function toggleVerticalHeart(state)
+        SH.VerticalHeartConfig.Enabled = state
+        if state then
+            PlayActionSound()
+            if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
+            if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
+            if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
+            if SH.BigHeartConfig.Enabled then _G.toggleBigHeart(false) end
+            if SH.StarOfDavidConfig.Enabled then _G.toggleStarOfDavid(false) end
+            if SH.StarConfig.Enabled then _G.toggleStar(false) end
+            if SH.Star2Config.Enabled then _G.toggleStar2(false) end
+            if SH.SphereConfig.Enabled then _G.toggleSphere(false) end
+            if SH.FerrisWheelConfig.Enabled then _G.toggleFerrisWheel(false) end
+            if SH.AnimN1Config.Enabled then _G.toggleAnimN1(false) end
+            if SH.AnimN2Config.Enabled then _G.toggleAnimN2(false) end
+            if SH.AnimN3Config.Enabled then _G.toggleAnimN3(false) end
+            if SH.WingConfig.Enabled then _G.toggleWing(false) end
+            if SH.SaturnConfig.Enabled then _G.toggleSaturn(false) end
+            if SH.PianoConfig.Enabled then _G.togglePiano(false) end
+            if SH.VerticalBigHeartConfig.Enabled then _G.toggleVerticalBigHeart(false) end
+            
+            SH.verticalHeartToys = findObjects()
+            if #SH.verticalHeartToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.VerticalHeartConfig.Enabled = false
+                return
+            end
+            
+            local count = math.min(#SH.verticalHeartToys, SH.VerticalHeartConfig.ObjectCount)
+            SH.verticalHeartPoints = {}
+            for i = 1, count do
+                local part = Instance.new("Part")
+                part.CanCollide = false; part.Anchored = true; part.Transparency = 1
+                part.Size = Vector3.new(4, 1, 4); part.Parent = workspace
+                SH.verticalHeartPoints[i] = { angle = (i - 1) * (2 * math.pi / count), part = part, assignedToy = nil }
+            end
+            
+            SH.verticalHeartAssignedToys = {}
+            for i = 1, math.min(#SH.verticalHeartToys, #SH.verticalHeartPoints) do
+                local toy = SH.verticalHeartToys[i]
+                if toy and toy:IsA("Model") and toy.Name == SH.ObjectIDConfig.CurrentObjectID then
+                    local primaryPart = getPrimaryPart(toy)
+                    if primaryPart then
+                        for _, child in ipairs(toy:GetChildren()) do if child:IsA("BasePart") then child.CanCollide = false; child.CanTouch = false; child.Anchored = false end end
+                        local BG, BP = attachPhysics(primaryPart)
+                        local toyTable = { BG = BG, BP = BP, Pallet = primaryPart, Model = toy, PointIndex = i, baseAngle = SH.verticalHeartPoints[i].angle }
+                        SH.verticalHeartPoints[i].assignedToy = toyTable
+                        table.insert(SH.verticalHeartAssignedToys, toyTable)
+                    end
+                end
+            end
+            
+            SH.verticalHeartTime = 0
+            if SH.verticalHeartLoopConn then SH.verticalHeartLoopConn:Disconnect() end
+            SH.verticalHeartLoopConn = RunService.RenderStepped:Connect(function(dt)
+                if not SH.VerticalHeartConfig.Enabled or not LocalPlayer.Character then return end
+                local torso = LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character:FindFirstChild("UpperTorso")
+                if not torso then return end
+                SH.verticalHeartTime = SH.verticalHeartTime + dt
+                local basePosition = SH.VerticalHeartConfig.FollowPlayer and torso.Position or torso.Position
+                local pulseEffect = (SH.VerticalHeartConfig.PulseSpeed > 0) and math.sin(SH.verticalHeartTime * SH.VerticalHeartConfig.PulseSpeed) * SH.VerticalHeartConfig.PulseAmplitude or 0
+                for _, point in ipairs(SH.verticalHeartPoints) do
+                    if point.assignedToy and point.assignedToy.BP and point.assignedToy.BG then
+                        local toy = point.assignedToy
+                        local currentAngle = toy.baseAngle + (SH.verticalHeartTime * SH.VerticalHeartConfig.RotationSpeed)
+                        local baseScale = SH.VerticalHeartConfig.Size / 20
+                        local x = 16 * (math.sin(currentAngle) ^ 3) * baseScale
+                        local y = (13 * math.cos(currentAngle) - 5 * math.cos(2*currentAngle) - 2 * math.cos(3*currentAngle) - math.cos(4*currentAngle)) * baseScale
+                        if pulseEffect > 0 then local pf = 1 + (pulseEffect * 0.1); x = x * pf; y = y * pf end
+                        local targetPosition = basePosition + Vector3.new(x, SH.VerticalHeartConfig.Height + y, 0)
+                        if point.part then point.part.Position = targetPosition end
+                        toy.BP.Position = targetPosition
+                        toy.BG.CFrame = CFrame.new(targetPosition) * CFrame.Angles(0, 0, 0)
+                    end
+                end
+            end)
+            OrionLib:MakeNotification({ Name = "縦ハート開始", Content = "サイズ: " .. SH.VerticalHeartConfig.Size, Time = 3 })
+        else
+            PlayOpenCloseSound()
+            if SH.verticalHeartLoopConn then SH.verticalHeartLoopConn:Disconnect(); SH.verticalHeartLoopConn = nil end
+            for _, point in ipairs(SH.verticalHeartPoints) do
+                if point.part then point.part:Destroy() end
+                if point.assignedToy then
+                    if point.assignedToy.BG then point.assignedToy.BG:Destroy() end
+                    if point.assignedToy.BP then point.assignedToy.BP:Destroy() end
+                end
+            end
+            SH.verticalHeartPoints = {}; SH.verticalHeartAssignedToys = {}
+            OrionLib:MakeNotification({ Name = "縦ハート停止", Content = "縦ハート配置を解除", Time = 2 })
+        end
+    end
+    _G.toggleVerticalHeart = toggleVerticalHeart
+end
+
+-- ============================================================================
+-- ブロック26: 縦ビッグハート機能（エラー音追加）
+-- ============================================================================
+do
+    local SH = _G.SH
+    local Workspace = _G.Workspace
+    local LocalPlayer = _G.LocalPlayer
+    local RunService = _G.RunService
+    local OrionLib = _G.OrionLib
+    local findObjects = _G.findObjects
+    local getPrimaryPart = _G.getPrimaryPart
+    local attachPhysics = _G.attachPhysics
+
+    function toggleVerticalBigHeart(state)
+        SH.VerticalBigHeartConfig.Enabled = state
+        if state then
+            PlayActionSound()
+            if SH.FeatherConfig.Enabled then _G.toggleFeather(false) end
+            if SH.MagicCircleConfig.Enabled then _G.toggleMagicCircle(false) end
+            if SH.HeartConfig.Enabled then _G.toggleHeart(false) end
+            if SH.BigHeartConfig.Enabled then _G.toggleBigHeart(false) end
+            if SH.StarOfDavidConfig.Enabled then _G.toggleStarOfDavid(false) end
+            if SH.StarConfig.Enabled then _G.toggleStar(false) end
+            if SH.Star2Config.Enabled then _G.toggleStar2(false) end
+            if SH.SphereConfig.Enabled then _G.toggleSphere(false) end
+            if SH.FerrisWheelConfig.Enabled then _G.toggleFerrisWheel(false) end
+            if SH.AnimN1Config.Enabled then _G.toggleAnimN1(false) end
+            if SH.AnimN2Config.Enabled then _G.toggleAnimN2(false) end
+            if SH.AnimN3Config.Enabled then _G.toggleAnimN3(false) end
+            if SH.WingConfig.Enabled then _G.toggleWing(false) end
+            if SH.SaturnConfig.Enabled then _G.toggleSaturn(false) end
+            if SH.PianoConfig.Enabled then _G.togglePiano(false) end
+            if SH.VerticalHeartConfig.Enabled then _G.toggleVerticalHeart(false) end
+            
+            SH.verticalBigHeartToys = findObjects()
+            if #SH.verticalBigHeartToys == 0 then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "オブジェクトが見つかりません", Time = 3 })
+                SH.VerticalBigHeartConfig.Enabled = false
+                return
+            end
+            
+            local count = math.min(#SH.verticalBigHeartToys, SH.VerticalBigHeartConfig.ObjectCount)
+            SH.verticalBigHeartPoints = {}
+            for i = 1, count do
+                local part = Instance.new("Part")
+                part.CanCollide = false; part.Anchored = true; part.Transparency = 1
+                part.Size = Vector3.new(4, 1, 4); part.Parent = workspace
+                SH.verticalBigHeartPoints[i] = { angle = (i - 1) * (2 * math.pi / count), part = part, assignedToy = nil }
+            end
+            
+            SH.verticalBigHeartAssignedToys = {}
+            for i = 1, math.min(#SH.verticalBigHeartToys, #SH.verticalBigHeartPoints) do
+                local toy = SH.verticalBigHeartToys[i]
+                if toy and toy:IsA("Model") and toy.Name == SH.ObjectIDConfig.CurrentObjectID then
+                    local primaryPart = getPrimaryPart(toy)
+                    if primaryPart then
+                        for _, child in ipairs(toy:GetChildren()) do if child:IsA("BasePart") then child.CanCollide = false; child.CanTouch = false; child.Anchored = false end end
+                        local BG, BP = attachPhysics(primaryPart)
+                        local toyTable = { BG = BG, BP = BP, Pallet = primaryPart, Model = toy, PointIndex = i, baseAngle = SH.verticalBigHeartPoints[i].angle }
+                        SH.verticalBigHeartPoints[i].assignedToy = toyTable
+                        table.insert(SH.verticalBigHeartAssignedToys, toyTable)
+                    end
+                end
+            end
+            
+            SH.verticalBigHeartTime = 0
+            if SH.verticalBigHeartLoopConn then SH.verticalBigHeartLoopConn:Disconnect() end
+            SH.verticalBigHeartLoopConn = RunService.RenderStepped:Connect(function(dt)
+                if not SH.VerticalBigHeartConfig.Enabled or not LocalPlayer.Character then return end
+                local torso = LocalPlayer.Character:FindFirstChild("Torso") or LocalPlayer.Character:FindFirstChild("UpperTorso")
+                if not torso then return end
+                SH.verticalBigHeartTime = SH.verticalBigHeartTime + dt
+                local basePosition = SH.VerticalBigHeartConfig.FollowPlayer and torso.Position or torso.Position
+                local pulseEffect = (SH.VerticalBigHeartConfig.PulseSpeed > 0) and math.sin(SH.verticalBigHeartTime * SH.VerticalBigHeartConfig.PulseSpeed) * SH.VerticalBigHeartConfig.PulseAmplitude or 0
+                for _, point in ipairs(SH.verticalBigHeartPoints) do
+                    if point.assignedToy and point.assignedToy.BP and point.assignedToy.BG then
+                        local toy = point.assignedToy
+                        local currentAngle = toy.baseAngle + (SH.verticalBigHeartTime * SH.VerticalBigHeartConfig.RotationSpeed)
+                        local baseScale = SH.VerticalBigHeartConfig.Size / 20
+                        local x = 16 * (math.sin(currentAngle) ^ 3) * baseScale * SH.VerticalBigHeartConfig.HeartScale
+                        local y = (13 * math.cos(currentAngle) - 5 * math.cos(2*currentAngle) - 2 * math.cos(3*currentAngle) - math.cos(4*currentAngle)) * baseScale * SH.VerticalBigHeartConfig.HeartScale
+                        if pulseEffect > 0 then local pf = 1 + (pulseEffect * 0.1); x = x * pf; y = y * pf end
+                        local targetPosition = basePosition + Vector3.new(x, SH.VerticalBigHeartConfig.Height + y, 0)
+                        if point.part then point.part.Position = targetPosition end
+                        toy.BP.Position = targetPosition
+                        toy.BG.CFrame = CFrame.new(targetPosition) * CFrame.Angles(0, 0, 0)
+                    end
+                end
+            end)
+            OrionLib:MakeNotification({ Name = "縦ビッグハート開始", Content = "サイズ: " .. SH.VerticalBigHeartConfig.Size, Time = 3 })
+        else
+            PlayOpenCloseSound()
+            if SH.verticalBigHeartLoopConn then SH.verticalBigHeartLoopConn:Disconnect(); SH.verticalBigHeartLoopConn = nil end
+            for _, point in ipairs(SH.verticalBigHeartPoints) do
+                if point.part then point.part:Destroy() end
+                if point.assignedToy then
+                    if point.assignedToy.BG then point.assignedToy.BG:Destroy() end
+                    if point.assignedToy.BP then point.assignedToy.BP:Destroy() end
+                end
+            end
+            SH.verticalBigHeartPoints = {}; SH.verticalBigHeartAssignedToys = {}
+            OrionLib:MakeNotification({ Name = "縦ビッグハート停止", Content = "縦ビッグハート配置を解除", Time = 2 })
+        end
+    end
+    _G.toggleVerticalBigHeart = toggleVerticalBigHeart
+end
+
+-- ============================================================================
+-- ブロック27: Me(=^・^=)タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -2635,7 +2998,7 @@ do
 end
 
 -- ============================================================================
--- ブロック26: GUIタブ 2番目
+-- ブロック28: GUIタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -2819,31 +3182,9 @@ do
                     Time = 3
                 })
             else
+                PlayErrorSound()
                 OrionLib:MakeNotification({
                     Name = "SaluraHUB-keyboard.GUI",
-                    Content = "読み込み失敗: " .. tostring(err),
-                    Time = 5
-                })
-            end
-        end
-    })
-
-    GUITab:AddSection({ Name = "かめはめ波GUI" })
-    GUITab:AddButton({
-        Name = "かめはめ波GUI",
-        Callback = function()
-            local success, err = pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/1%5Bkamehameha%5D"))()
-            end)
-            if success then
-                OrionLib:MakeNotification({
-                    Name = "かめはめ波GUI",
-                    Content = "読み込み成功！",
-                    Time = 3
-                })
-            else
-                OrionLib:MakeNotification({
-                    Name = "かめはめ波GUI",
                     Content = "読み込み失敗: " .. tostring(err),
                     Time = 5
                 })
@@ -2853,7 +3194,7 @@ do
 end
 
 -- ============================================================================
--- ブロック27: アンチタブ 3番目
+-- ブロック29: アンチタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -3183,7 +3524,7 @@ do
 end
 
 -- ============================================================================
--- ブロック28: 攻撃系タブ 4番目（日本語完全対応版）
+-- ブロック30: 攻撃系タブ（日本語化 + スフィアオービットキックV1追加）
 -- ============================================================================
 do
     local Window = _G.Window
@@ -3195,6 +3536,382 @@ do
     local Workspace = _G.Workspace
     local UserInputService = _G.UserInputService
 
+    -- ============================================================================
+    -- スフィアオービットキックV1 (Sphere Orbit Kick V1)
+    -- ============================================================================
+    local SphereOrbitKick = {}
+    do
+        local ORBIT_RADIUS = 12
+        local ORBIT_SPEED = 60
+        local ORBIT_HEIGHT = 10
+        local SPHERE_TILT = 0.9
+        local SPHERE_COMPLEXITY = 0.7
+        local EFFECTS_ENABLED = true
+        local PARTICLE_COUNT = 50
+
+        local orbitRunning = false
+        local orbitAngle = 0
+        local effectParts = {}
+        local currentLoopId = 0
+
+        local function getOrbitPlayerNames()
+            local names = {}
+            local map = {}
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer then
+                    local displayStr = player.DisplayName .. " (@ " .. player.Name .. ")"
+                    table.insert(names, displayStr)
+                    map[displayStr] = player.Name
+                end
+            end
+            return names, map
+        end
+
+        local function calculateSpherePosition(angle, radius, height, tilt, complexity)
+            local hAngle = angle
+            local vAngle = math.sin(angle * 0.5 + math.cos(angle * 0.2) * 0.3) * math.pi * 0.5 + math.pi * 0.5
+            local complexityOffset = math.sin(angle * complexity) * 0.3
+            local x = math.cos(hAngle + complexityOffset) * radius * math.sin(vAngle)
+            local y = math.cos(vAngle + angle * 0.1) * radius * tilt + height + math.sin(angle * 0.7) * 1.5
+            local z = math.sin(hAngle + complexityOffset) * radius * math.sin(vAngle)
+            return Vector3.new(x, y, z)
+        end
+
+        local function createOrbitEffect(position, color)
+            if not EFFECTS_ENABLED then return end
+            local trailPart = Instance.new("Part")
+            trailPart.Size = Vector3.new(0.3, 0.3, 0.3)
+            trailPart.Position = position
+            trailPart.Anchored = true
+            trailPart.CanCollide = false
+            trailPart.Material = Enum.Material.Neon
+            trailPart.BrickColor = BrickColor.new(color or "Bright violet")
+            trailPart.Transparency = 0.3
+            trailPart.Parent = workspace
+            game:GetService("Debris"):AddItem(trailPart, 0.3)
+            if #effectParts < PARTICLE_COUNT then
+                table.insert(effectParts, trailPart)
+            end
+        end
+
+        local function getBlobman()
+            local inv = Workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
+            if inv then
+                local blob = inv:FindFirstChild("CreatureBlobman")
+                if blob and blob:FindFirstChild("VehicleSeat") then
+                    return blob
+                end
+            end
+            return nil
+        end
+
+        local function spawnBlobman()
+            local mt = ReplicatedStorage:FindFirstChild("MenuToys")
+            if not mt then return nil end
+            local st = mt:FindFirstChild("SpawnToyRemoteFunction")
+            if not st then return nil end
+            local char = LocalPlayer.Character
+            if not char then return nil end
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if not root then return nil end
+            local spawnCF = root.CFrame + Vector3.new(0, 5, 0)
+            pcall(function()
+                st:InvokeServer("CreatureBlobman", spawnCF, Vector3.zero)
+            end)
+            task.wait(0.8)
+            return getBlobman()
+        end
+
+        local function sitOnBlobman(blob)
+            if not blob then return false end
+            local seat = blob:FindFirstChild("VehicleSeat")
+            if not seat then return false end
+            local hum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if not hum then return false end
+            if seat.Occupant ~= hum then
+                local root = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if root then
+                    root.CFrame = seat.CFrame + Vector3.new(0, 2, 0)
+                    task.wait(0.2)
+                end
+                seat:Sit(hum)
+                task.wait(0.5)
+            end
+            return true
+        end
+
+        function SphereOrbitKick.kick(playerName)
+            local target = Players:FindFirstChild(playerName)
+            if not target then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "プレイヤーが見つかりません", Time = 3 })
+                return false
+            end
+            if target == LocalPlayer then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "自分自身はターゲットにできません", Time = 3 })
+                return false
+            end
+
+            if orbitRunning then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "既に実行中です", Time = 3 })
+                return false
+            end
+
+            orbitRunning = true
+            currentLoopId = currentLoopId + 1
+            local myLoopId = currentLoopId
+            local targetPlayer = target
+
+            task.spawn(function()
+                local blobman = getBlobman()
+                if not blobman then
+                    blobman = spawnBlobman()
+                    if not blobman then
+                        PlayErrorSound()
+                        OrionLib:MakeNotification({ Name = "エラー", Content = "ブロブマンの生成に失敗しました", Time = 3 })
+                        orbitRunning = false
+                        return
+                    end
+                end
+
+                if not sitOnBlobman(blobman) then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "ブロブマンに座れませんでした", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local scriptObj = blobman:FindFirstChild("BlobmanSeatAndOwnerScript")
+                if not scriptObj then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "BlobmanSeatAndOwnerScriptが見つかりません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local grabRemote = scriptObj:FindFirstChild("CreatureGrab")
+                local dropRemote = scriptObj:FindFirstChild("CreatureDrop")
+                local GE = ReplicatedStorage:FindFirstChild("GrabEvents")
+
+                if not (grabRemote and dropRemote and GE) then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "必要なRemoteが見つかりません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local lDet = blobman:FindFirstChild("LeftDetector")
+                local rDet = blobman:FindFirstChild("RightDetector")
+                local lWeld = lDet and (lDet:FindFirstChild("LeftWeld") or lDet:FindFirstChild("RigidConstraint"))
+                local rWeld = rDet and (rDet:FindFirstChild("RightWeld") or rDet:FindFirstChild("RigidConstraint"))
+
+                if not ((lDet and lWeld) or (rDet and rWeld)) then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "検出器またはWeldが見つかりません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local Det = rDet or lDet
+                local Weld = rWeld or lWeld
+                local blobRoot = blobman:FindFirstChild("HumanoidRootPart") or blobman.PrimaryPart
+
+                if not blobRoot then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "ブロブマンのルートパーツが見つかりません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local targetChar = targetPlayer.Character
+                if not targetChar then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "ターゲットにキャラクターがありません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
+                if not targetRoot then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "ターゲットにHumanoidRootPartがありません", Time = 3 })
+                    orbitRunning = false
+                    return
+                end
+
+                -- 引き寄せフェーズ
+                local bringStart = tick()
+                while tick() - bringStart < 0.35 do
+                    if myLoopId ~= currentLoopId or not orbitRunning then
+                        orbitRunning = false
+                        return
+                    end
+                    if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                        local currentTRoot = targetPlayer.Character.HumanoidRootPart
+                        blobRoot.CFrame = currentTRoot.CFrame
+                        blobRoot.AssemblyLinearVelocity = Vector3.zero
+                        pcall(function()
+                            if Det then grabRemote:FireServer(Det, currentTRoot, Weld) end
+                            GE.CreateGrabLine:FireServer(currentTRoot, Vector3.zero, currentTRoot.Position, false)
+                            GE.SetNetworkOwner:FireServer(currentTRoot, blobRoot.CFrame)
+                        end)
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+
+                local SavedPos = targetRoot.CFrame
+                local targetCenterCFrame = SavedPos + Vector3.new(0, ORBIT_HEIGHT, 0)
+                local lastTime = tick()
+                local lastDropTime = tick()
+                local dropCount = 0
+                local effectTimer = 0
+
+                OrionLib:MakeNotification({
+                    Name = "スフィアオービットキック",
+                    Content = targetPlayer.Name .. " を実行中",
+                    Time = 2
+                })
+
+                while orbitRunning and blobman and blobman.Parent do
+                    if myLoopId ~= currentLoopId then break end
+                    if not targetPlayer or not targetPlayer.Parent or not targetPlayer.Character then break end
+
+                    local tChar = targetPlayer.Character
+                    local tRoot = tChar:FindFirstChild("HumanoidRootPart")
+                    local tHum = tChar:FindFirstChild("Humanoid")
+
+                    if dropCount < 3 and (tick() - lastDropTime) > 0.6 then
+                        dropCount = dropCount + 1
+                        pcall(function()
+                            local currentWeld = Det:FindFirstChild("RightWeld") or Det:FindFirstChild("LeftWeld") or Det:FindFirstChildWhichIsA("Weld") or Det:FindFirstChild("RigidConstraint")
+                            if currentWeld then dropRemote:FireServer(currentWeld) end
+                            GE.DestroyGrabLine:FireServer(tRoot)
+                        end)
+                        blobRoot.CFrame = SavedPos
+                        blobRoot.AssemblyLinearVelocity = Vector3.zero
+                        task.wait(0.05)
+
+                        local reCaptureStart = tick()
+                        while tick() - reCaptureStart < 0.25 do
+                            if myLoopId ~= currentLoopId or not orbitRunning or not blobman or not blobman.Parent then break end
+                            if targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                local currentTRoot = targetPlayer.Character.HumanoidRootPart
+                                blobRoot.CFrame = currentTRoot.CFrame
+                                blobRoot.AssemblyLinearVelocity = Vector3.zero
+                                pcall(function()
+                                    if Det then grabRemote:FireServer(Det, currentTRoot, Weld) end
+                                    GE.CreateGrabLine:FireServer(currentTRoot, Vector3.zero, currentTRoot.Position, false)
+                                    GE.SetNetworkOwner:FireServer(currentTRoot, blobRoot.CFrame)
+                                end)
+                            end
+                            RunService.Heartbeat:Wait()
+                        end
+                        lastTime = tick()
+                        lastDropTime = tick()
+                    end
+
+                    if tRoot and tHum and tHum.Health > 0 and blobRoot then
+                        local currentTime = tick()
+                        local dt = currentTime - lastTime
+                        lastTime = currentTime
+
+                        orbitAngle = orbitAngle + (ORBIT_SPEED * dt)
+                        local offset = calculateSpherePosition(orbitAngle, ORBIT_RADIUS, ORBIT_HEIGHT, SPHERE_TILT, SPHERE_COMPLEXITY)
+                        local blobPos = targetCenterCFrame.Position + offset
+
+                        blobRoot.CFrame = CFrame.new(blobPos, targetCenterCFrame.Position)
+                        blobRoot.AssemblyLinearVelocity = Vector3.zero
+                        blobRoot.AssemblyAngularVelocity = Vector3.zero
+
+                        tRoot.CFrame = targetCenterCFrame
+                        tRoot.AssemblyLinearVelocity = Vector3.zero
+                        tRoot.AssemblyAngularVelocity = Vector3.zero
+
+                        effectTimer = effectTimer + dt
+                        if EFFECTS_ENABLED and effectTimer > 0.05 then
+                            effectTimer = 0
+                            local colorIdx = math.floor((orbitAngle / (math.pi * 2)) % 10)
+                            local colors = {"Bright violet", "Bright blue", "Bright red", "Bright yellow", "Bright green", "Bright orange", "Bright pink", "Cyan", "Magenta", "White"}
+                            createOrbitEffect(blobPos, colors[colorIdx + 1] or "Bright violet")
+                        end
+
+                        pcall(function()
+                            tHum.PlatformStand = true
+                            tHum.Sit = true
+                            GE.SetNetworkOwner:FireServer(tRoot, targetCenterCFrame)
+                            local currentWeld = Det:FindFirstChild("RightWeld") or Det:FindFirstChild("LeftWeld") or Det:FindFirstChildWhichIsA("Weld") or Det:FindFirstChild("RigidConstraint")
+                            if currentWeld then dropRemote:FireServer(currentWeld) end
+                            GE.DestroyGrabLine:FireServer(tRoot)
+                            if Det then grabRemote:FireServer(Det, tRoot, Weld) end
+                            GE.CreateGrabLine:FireServer(tRoot, Vector3.zero, targetCenterCFrame.Position, false)
+                        end)
+                    else
+                        break
+                    end
+                    RunService.Heartbeat:Wait()
+                end
+
+                if blobRoot and SavedPos then
+                    pcall(function()
+                        local currentWeld = Det:FindFirstChild("RightWeld") or Det:FindFirstChild("LeftWeld") or Det:FindFirstChildWhichIsA("Weld") or Det:FindFirstChild("RigidConstraint")
+                        if currentWeld then dropRemote:FireServer(currentWeld) end
+                        if targetPlayer and targetPlayer.Character and targetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            GE.DestroyGrabLine:FireServer(targetPlayer.Character.HumanoidRootPart)
+                        end
+                    end)
+                    blobRoot.CFrame = SavedPos
+                    blobRoot.AssemblyLinearVelocity = Vector3.zero
+                end
+
+                for _, part in ipairs(effectParts) do
+                    if part and part.Parent then part:Destroy() end
+                end
+                effectParts = {}
+
+                orbitRunning = false
+                OrionLib:MakeNotification({
+                    Name = "スフィアオービットキック",
+                    Content = "終了しました",
+                    Time = 2
+                })
+            end)
+
+            return true
+        end
+
+        function SphereOrbitKick.stop()
+            orbitRunning = false
+            currentLoopId = currentLoopId + 1
+            for _, part in ipairs(effectParts) do
+                if part and part.Parent then part:Destroy() end
+            end
+            effectParts = {}
+            OrionLib:MakeNotification({ Name = "スフィアオービットキック", Content = "停止しました", Time = 2 })
+        end
+
+        function SphereOrbitKick.isRunning()
+            return orbitRunning
+        end
+
+        function SphereOrbitKick.setRadius(v) ORBIT_RADIUS = v or 12 end
+        function SphereOrbitKick.setSpeed(v) ORBIT_SPEED = v or 60 end
+        function SphereOrbitKick.setHeight(v) ORBIT_HEIGHT = v or 10 end
+        function SphereOrbitKick.setTilt(v) SPHERE_TILT = v or 0.9 end
+        function SphereOrbitKick.setComplexity(v) SPHERE_COMPLEXITY = v or 0.7 end
+        function SphereOrbitKick.setEffects(v) EFFECTS_ENABLED = v end
+        function SphereOrbitKick.getPlayers()
+            local names, _ = getOrbitPlayerNames()
+            return names
+        end
+
+        _G.SphereOrbitKick = SphereOrbitKick
+    end
+
+    -- ============================================================================
+    -- 攻撃系タブ UI
+    -- ============================================================================
     local AttackTab = Window:MakeTab({ 
         Name = "攻撃系", 
         Icon = "rbxassetid://4483345998", 
@@ -3224,6 +3941,9 @@ do
         Options = getPlayerTable(),
         Callback = function(value)
             selectedKickPlayer = Players:FindFirstChild(value)
+            if not selectedKickPlayer then
+                PlayErrorSound()
+            end
             OrionLib:MakeNotification({ 
                 Name = "プレイヤー選択", 
                 Content = "ターゲット: " .. value, 
@@ -3250,6 +3970,7 @@ do
         Callback = function(on)
             kickLoopEnabled = on
             if on and not selectedKickPlayer then
+                PlayErrorSound()
                 OrionLib:MakeNotification({ 
                     Name = "エラー", 
                     Content = "先にターゲットプレイヤーを選択してください！", 
@@ -3262,6 +3983,7 @@ do
             local hum = char and char:FindFirstChild("Humanoid")
             local seat = hum and hum.SeatPart
             if on and (not seat or seat.Parent.Name ~= "CreatureBlobman") then
+                PlayErrorSound()
                 OrionLib:MakeNotification({ 
                     Name = "エラー", 
                     Content = "ブロブクリーチャーに座っている必要があります！", 
@@ -3384,16 +4106,16 @@ do
 
     AttackTab:AddSection({ Name = "キックV2 (軌道＆掴み)" })
 
-    local orbitRunning = false
+    local orbitRunningV2 = false
     local selectedOrbitTargetName = ""
     local orbitRadius = 5
     local orbitSpeed = 10
     local orbitHeightOffset = 10
-    local orbitAngle = 0
-    local orbitCurrentLoopId = 0
+    local orbitAngleV2 = 0
+    local orbitCurrentLoopIdV2 = 0
     local orbitPlayerMap = {}
 
-    local function getOrbitPlayerNames()
+    local function getOrbitPlayerNamesV2()
         local names = {}
         orbitPlayerMap = {}
         for _, player in ipairs(Players:GetPlayers()) do
@@ -3409,16 +4131,19 @@ do
     local OrbitTargetDropdown = AttackTab:AddDropdown({
         Name = "ターゲットを選択",
         Default = "",
-        Options = getOrbitPlayerNames(),
+        Options = getOrbitPlayerNamesV2(),
         Callback = function(Value)
             selectedOrbitTargetName = orbitPlayerMap[Value] or ""
+            if selectedOrbitTargetName == "" then
+                PlayErrorSound()
+            end
         end
     })
 
     AttackTab:AddButton({
         Name = "プレイヤーリスト更新",
         Callback = function()
-            OrbitTargetDropdown:Refresh(getOrbitPlayerNames(), true)
+            OrbitTargetDropdown:Refresh(getOrbitPlayerNamesV2(), true)
         end
     })
 
@@ -3426,9 +4151,9 @@ do
         Name = "ドリフトキックV2",
         Default = false,
         Callback = function(v)
-            orbitRunning = v
-            orbitCurrentLoopId = orbitCurrentLoopId + 1
-            local myLoopId = orbitCurrentLoopId
+            orbitRunningV2 = v
+            orbitCurrentLoopIdV2 = orbitCurrentLoopIdV2 + 1
+            local myLoopId = orbitCurrentLoopIdV2
 
             if not v then return end
 
@@ -3499,7 +4224,7 @@ do
                             
                             local bringStart = tick()
                             while tick() - bringStart < 0.35 do
-                                if myLoopId ~= orbitCurrentLoopId or not orbitRunning or not blobman or not blobman.Parent then return end
+                                if myLoopId ~= orbitCurrentLoopIdV2 or not orbitRunningV2 or not blobman or not blobman.Parent then return end
                                 if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
                                     local tRoot = target.Character.HumanoidRootPart
                                     blobRoot.CFrame = tRoot.CFrame
@@ -3523,8 +4248,8 @@ do
                             local lastDropTime = tick()
                             local dropCount = 0
                             
-                            while orbitRunning and blobman and blobman.Parent do
-                                if myLoopId ~= orbitCurrentLoopId then break end
+                            while orbitRunningV2 and blobman and blobman.Parent do
+                                if myLoopId ~= orbitCurrentLoopIdV2 then break end
                                 if not target or not target.Parent or not target.Character then break end
                                 
                                 local tChar = target.Character
@@ -3549,7 +4274,7 @@ do
                                     
                                     local reCaptureStart = tick()
                                     while tick() - reCaptureStart < 0.35 do
-                                        if myLoopId ~= orbitCurrentLoopId or not orbitRunning or not blobman or not blobman.Parent then break end
+                                        if myLoopId ~= orbitCurrentLoopIdV2 or not orbitRunningV2 or not blobman or not blobman.Parent then break end
                                         if target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
                                             local currentTRoot = target.Character.HumanoidRootPart
                                             blobRoot.CFrame = currentTRoot.CFrame
@@ -3573,9 +4298,9 @@ do
                                     local dt = currentTime - lastTime
                                     lastTime = currentTime
 
-                                    orbitAngle = orbitAngle + (orbitSpeed * dt)
-                                    local offsetX = math.cos(orbitAngle) * orbitRadius
-                                    local offsetZ = math.sin(orbitAngle) * orbitRadius
+                                    orbitAngleV2 = orbitAngleV2 + (orbitSpeed * dt)
+                                    local offsetX = math.cos(orbitAngleV2) * orbitRadius
+                                    local offsetZ = math.sin(orbitAngleV2) * orbitRadius
                                     
                                     local blobPos = targetCenterCFrame.Position + Vector3.new(offsetX, orbitHeightOffset, offsetZ)
                                     blobRoot.CFrame = CFrame.new(blobPos, targetCenterCFrame.Position)
@@ -3619,32 +4344,38 @@ do
                             end
                         end)
                     else
+                        PlayErrorSound()
                         OrionLib:MakeNotification({
                             Name = "エラー",
                             Content = "必要なRemoteEventや検出器が見つかりません",
                             Time = 5
                         })
-                        orbitRunning = false
+                        orbitRunningV2 = false
                     end
                 else
+                    PlayErrorSound()
                     OrionLib:MakeNotification({
                         Name = "エラー",
                         Content = "ブロブマンの取得・生成に失敗しました",
                         Time = 3
                     })
-                    orbitRunning = false
+                    orbitRunningV2 = false
                 end
             else
+                PlayErrorSound()
                 OrionLib:MakeNotification({
                     Name = "エラー",
                     Content = "ターゲットが無効です",
                     Time = 3
                 })
-                orbitRunning = false
+                orbitRunningV2 = false
             end
         end
     })
 
+    -- ============================================================================
+    -- ふっとばすセクション（日本語化）
+    -- ============================================================================
     AttackTab:AddSection({ Name = "ふっとばす" })
 
     local BlobmanBeta = {}
@@ -3775,29 +4506,34 @@ do
 
     local function KickSelectedV3Player()
         if isExecuting then
+            PlayErrorSound()
             OrionLib:MakeNotification({Name = "エラー", Content = "既に実行中です...", Time = 3})
             return
         end
         
         if not selectedV3Player then
+            PlayErrorSound()
             OrionLib:MakeNotification({Name = "エラー", Content = "先にプレイヤーを選択してください", Time = 3})
             return
         end
         
         local targetPlayer = Players:FindFirstChild(selectedV3Player)
         if not targetPlayer then
+            PlayErrorSound()
             OrionLib:MakeNotification({Name = "エラー", Content = "プレイヤーが見つかりません", Time = 3})
             return
         end
         
         local targetChar = targetPlayer.Character
         if not targetChar then
+            PlayErrorSound()
             OrionLib:MakeNotification({Name = "エラー", Content = "ターゲットにキャラクターがありません", Time = 3})
             return
         end
         
         local targetRoot = targetChar:FindFirstChild("HumanoidRootPart")
         if not targetRoot then
+            PlayErrorSound()
             OrionLib:MakeNotification({Name = "エラー", Content = "ターゲットにHumanoidRootPartがありません", Time = 3})
             return
         end
@@ -3809,6 +4545,7 @@ do
             if not blob then
                 blob = BlobmanBeta.spawnBlobman()
                 if not blob then
+                    PlayErrorSound()
                     OrionLib:MakeNotification({Name = "エラー", Content = "ブロブマンの生成に失敗しました", Time = 5})
                     return false
                 end
@@ -3817,6 +4554,7 @@ do
             if not BlobmanBeta.isSittingOnBlobman() then
                 BlobmanBeta.ensureSitBlobman()
                 if not BlobmanBeta.isSittingOnBlobman() then
+                    PlayErrorSound()
                     OrionLib:MakeNotification({Name = "エラー", Content = "ブロブマンに座っていません", Time = 4})
                     return false
                 end
@@ -3882,7 +4620,7 @@ do
     })
 
     AttackTab:AddToggle({
-        Name = "3人称視点",
+        Name = "三人称視点",
         Default = false,
         Callback = function(Value)
             if Value then
@@ -3895,6 +4633,9 @@ do
         end
     })
 
+    -- ============================================================================
+    -- 全員キック（日本語化）
+    -- ============================================================================
     AttackTab:AddSection({ Name = "全員キック" })
 
     local currentBlob = nil
@@ -3936,6 +4677,7 @@ do
         
         local allPlayers = GetAllPlayers()
         if #allPlayers == 0 then 
+            PlayErrorSound()
             OrionLib:MakeNotification({
                 Name = "対象がいません",
                 Content = "キックできるプレイヤーがいません。",
@@ -3960,6 +4702,7 @@ do
         local toyFolder = workspace:FindFirstChild(LocalPlayer.Name .. "SpawnedInToys")
         currentBlob = toyFolder and toyFolder:FindFirstChild("CreatureBlobman")
         if not currentBlob then 
+            PlayErrorSound()
             ResetTargets()
             isKickAllActive = false
             return 
@@ -3973,6 +4716,7 @@ do
         
         local myRoot = GetMyRoot()
         if not myRoot then 
+            PlayErrorSound()
             ResetTargets()
             isKickAllActive = false
             return 
@@ -4094,10 +4838,137 @@ do
             statusRunningLabel:Set(kickLoopEnabled and "状態V1: 実行中" or "状態V1: 停止")
         end
     end)
+
+    -- ============================================================================
+    -- スフィアオービットキックV1 セクション（新規追加）
+    -- ============================================================================
+    AttackTab:AddSection({ Name = "スフィアオービットキックV1" })
+
+    local sphereTargetMap = {}
+    local function getSpherePlayerNames()
+        local names = {}
+        sphereTargetMap = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if player ~= LocalPlayer then
+                local displayStr = player.DisplayName .. " (@ " .. player.Name .. ")"
+                table.insert(names, displayStr)
+                sphereTargetMap[displayStr] = player.Name
+            end
+        end
+        return names
+    end
+
+    local sphereTargetDropdown = AttackTab:AddDropdown({
+        Name = "ターゲットプレイヤー",
+        Default = "",
+        Options = getSpherePlayerNames(),
+        Callback = function(value)
+            local name = sphereTargetMap[value] or ""
+            if name == "" then
+                PlayErrorSound()
+            end
+            _G._SphereOrbitTarget = name
+        end
+    })
+
+    AttackTab:AddButton({
+        Name = "プレイヤーリスト更新",
+        Callback = function()
+            sphereTargetDropdown:Refresh(getSpherePlayerNames(), true)
+        end
+    })
+
+    AttackTab:AddButton({
+        Name = "🚀 実行（球体軌道キック）",
+        Callback = function()
+            local targetName = _G._SphereOrbitTarget or ""
+            if targetName == "" then
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "エラー", Content = "ターゲットを選択してください", Time = 3 })
+                return
+            end
+            SphereOrbitKick.kick(targetName)
+        end
+    })
+
+    AttackTab:AddButton({
+        Name = "⏹ 停止",
+        Callback = function()
+            SphereOrbitKick.stop()
+        end
+    })
+
+    AttackTab:AddSlider({
+        Name = "軌道半径",
+        Min = 5,
+        Max = 30,
+        Default = 12,
+        Color = Theme.SliderColor,
+        Increment = 1,
+        ValueName = "スタッド",
+        Callback = function(v) SphereOrbitKick.setRadius(v) end
+    })
+
+    AttackTab:AddSlider({
+        Name = "軌道速度",
+        Min = 10,
+        Max = 150,
+        Default = 60,
+        Color = Theme.SliderColor,
+        Increment = 5,
+        ValueName = "速度",
+        Callback = function(v) SphereOrbitKick.setSpeed(v) end
+    })
+
+    AttackTab:AddSlider({
+        Name = "浮遊高さ",
+        Min = 2,
+        Max = 30,
+        Default = 10,
+        Color = Theme.SliderColor,
+        Increment = 1,
+        ValueName = "スタッド",
+        Callback = function(v) SphereOrbitKick.setHeight(v) end
+    })
+
+    AttackTab:AddSlider({
+        Name = "球体傾き",
+        Min = 0.1,
+        Max = 1.5,
+        Default = 0.9,
+        Color = Theme.SliderColor,
+        Increment = 0.1,
+        ValueName = "傾き",
+        Callback = function(v) SphereOrbitKick.setTilt(v) end
+    })
+
+    AttackTab:AddSlider({
+        Name = "軌道複雑さ",
+        Min = 0.1,
+        Max = 2.0,
+        Default = 0.7,
+        Color = Theme.SliderColor,
+        Increment = 0.1,
+        ValueName = "複雑さ",
+        Callback = function(v) SphereOrbitKick.setComplexity(v) end
+    })
+
+    AttackTab:AddToggle({
+        Name = "エフェクト表示",
+        Default = true,
+        Callback = function(v) SphereOrbitKick.setEffects(v) end
+    })
+
+    AttackTab:AddParagraph("説明", 
+        "球体軌道キック V1\n" ..
+        "ターゲットの周囲を3D球体軌道で高速回転し、\n" ..
+        "強力なドリフトキックを繰り出します。\n" ..
+        "X,Y,Zすべての方向に360度回転します。"
+    )
 end
 
 -- ============================================================================
--- ブロック29: 汽車を乗っ取るタブ 5番目
+-- ブロック31: 汽車を乗っ取るタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -4305,6 +5176,7 @@ do
             end
         end
         if #empty == 0 then
+            PlayErrorSound()
             OrionLib:MakeNotification({
                 Name = "座席なし",
                 Content = "空いている座席がありません",
@@ -4434,7 +5306,7 @@ do
 end
 
 -- ============================================================================
--- ブロック30: 楽譜演奏タブ 6番目
+-- ブロック32: 楽譜演奏タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -4461,8 +5333,16 @@ do
     end })
     PianoSongSec:AddButton({ Name = "入力した曲を再生", Callback = function()
         if not SH.PianoConfig.Keyboard then SH.PianoConfig.Keyboard = _G.getMusicKeyboard() end
-        if not SH.PianoConfig.Keyboard then OrionLib:MakeNotification({Name = "エラー", Content = "MusicKeyboardが見つかりません", Time = 5}) return end
-        if not SH.PianoConfig.SongData or SH.PianoConfig.SongData == "" then OrionLib:MakeNotification({Name = "エラー", Content = "JSONデータを入力してください", Time = 5}) return end
+        if not SH.PianoConfig.Keyboard then 
+            PlayErrorSound()
+            OrionLib:MakeNotification({Name = "エラー", Content = "MusicKeyboardが見つかりません", Time = 5})
+            return 
+        end
+        if not SH.PianoConfig.SongData or SH.PianoConfig.SongData == "" then 
+            PlayErrorSound()
+            OrionLib:MakeNotification({Name = "エラー", Content = "JSONデータを入力してください", Time = 5})
+            return 
+        end
         _G.playSongFromJSONString(SH.PianoConfig.SongData)
         OrionLib:MakeNotification({ Name = "自動演奏", Content = "再生を開始しました", Time = 3 })
     end })
@@ -4486,7 +5366,7 @@ do
 end
 
 -- ============================================================================
--- ブロック31: SRBMタブ 7番目
+-- ブロック33: SRBMタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -4971,7 +5851,7 @@ do
 end
 
 -- ============================================================================
--- ブロック32: リソースパックタブ 8番目
+-- ブロック34: リソースパックタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -4998,6 +5878,7 @@ do
                     Time = 4
                 })
             else
+                PlayErrorSound()
                 OrionLib:MakeNotification({
                     Name = "リソースパックV1",
                     Content = "読み込み失敗: " .. tostring(err),
@@ -5014,7 +5895,7 @@ do
 end
 
 -- ============================================================================
--- ブロック33: スクリプトhubタブ 9番目
+-- ブロック35: スクリプトhubタブ（樱花AI と かめはめ波GUI を削除）
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5033,6 +5914,7 @@ do
         if success then
             OrionLib:MakeNotification({ Name = name, Content = "読み込み成功！", Time = 3 })
         else
+            PlayErrorSound()
             OrionLib:MakeNotification({ Name = name, Content = "読み込み失敗: " .. tostring(err), Time = 5 })
         end
     end
@@ -5053,16 +5935,11 @@ do
     ScriptHubTab:AddButton({ Name = "FTAP TP", Callback = function() 
         executeScript("https://pastefy.app/pAbXnxgr/raw", "FTAP TP") 
     end })
-    ScriptHubTab:AddButton({ 
-        Name = "樱花AI", 
-        Callback = function() 
-            executeScript("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/AIbot%5B%E3%83%95%E3%82%A7%E3%82%A4%E3%82%AF%5D", "樱花AI") 
-        end 
-    })
+    -- 樱花AI と かめはめ波GUI は削除されました
 end
 
 -- ============================================================================
--- ブロック34: オブジェクト設定タブ 10番目
+-- ブロック36: オブジェクト設定タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5085,7 +5962,7 @@ do
 end
 
 -- ============================================================================
--- ブロック35: バリア破壊タブ 11番目
+-- ブロック37: バリア破壊タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5100,8 +5977,13 @@ do
         Name = "Barrier Break(BETA)",
         Callback = function()
             local player = LocalPlayer
-            if not player then OrionLib:MakeNotification({ Name = "Error", Content = "Player not found", Time = 4 }) return end
+            if not player then 
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "Error", Content = "Player not found", Time = 4 })
+                return 
+            end
             if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then
+                PlayErrorSound()
                 OrionLib:MakeNotification({ Name = "Error", Content = "Character not ready", Time = 4 })
                 return
             end
@@ -5174,6 +6056,7 @@ do
             end
 
             if not success then
+                PlayErrorSound()
                 OrionLib:MakeNotification({ Name = "Error", Content = tostring(err), Time = 6 })
             end
         end
@@ -5181,7 +6064,7 @@ do
 end
 
 -- ============================================================================
--- ブロック36: フェザータブ 12番目
+-- ブロック38: フェザータブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5201,7 +6084,7 @@ do
 end
 
 -- ============================================================================
--- ブロック37: 羽V2タブ 13番目
+-- ブロック39: 羽V2タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5222,7 +6105,7 @@ do
 end
 
 -- ============================================================================
--- ブロック38: 土星スパークラータブ 14番目
+-- ブロック40: 土星スパークラータブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5261,7 +6144,7 @@ do
 end
 
 -- ============================================================================
--- ブロック39: 魔法陣タブ 15番目
+-- ブロック41: 魔法陣タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5280,7 +6163,7 @@ do
 end
 
 -- ============================================================================
--- ブロック40: 観覧車タブ 16番目
+-- ブロック42: 観覧車タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5303,7 +6186,7 @@ do
 end
 
 -- ============================================================================
--- ブロック41: ♡ハート//タブ 17番目
+-- ブロック43: ♡ハート//タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5323,7 +6206,7 @@ do
 end
 
 -- ============================================================================
--- ブロック42: 縦ハート//タブ 18番目
+-- ブロック44: 縦ハート//タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5343,7 +6226,7 @@ do
 end
 
 -- ============================================================================
--- ブロック43: おっきぃ♡タブ 19番目
+-- ブロック45: おっきぃ♡タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5365,7 +6248,7 @@ do
 end
 
 -- ============================================================================
--- ブロック44: 縦おっきぃ♡タブ 20番目
+-- ブロック46: 縦おっきぃ♡タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5386,7 +6269,7 @@ do
 end
 
 -- ============================================================================
--- ブロック45: 卍タブ 21番目
+-- ブロック47: 卍タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5465,6 +6348,7 @@ do
         if isRunning then return end
         sparklers = GetSparklers()
         if #sparklers < 2 then
+            PlayErrorSound()
             OrionLib:MakeNotification({
                 Name = "エラー",
                 Content = "スパークラーが2つ必要です",
@@ -5601,7 +6485,7 @@ do
 end
 
 -- ============================================================================
--- ブロック46: 球体◯タブ 22番目
+-- ブロック48: 球体◯タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5623,7 +6507,7 @@ do
 end
 
 -- ============================================================================
--- ブロック47: ダビデの星✡タブ 23番目
+-- ブロック49: ダビデの星✡タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5643,7 +6527,7 @@ do
 end
 
 -- ============================================================================
--- ブロック48: スター★タブ 24番目
+-- ブロック50: スター★タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5663,7 +6547,7 @@ do
 end
 
 -- ============================================================================
--- ブロック49: スター2✫タブ 25番目
+-- ブロック51: スター2✫タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5687,7 +6571,7 @@ do
 end
 
 -- ============================================================================
--- ブロック50: N1,N2,N3タブ 26〜28番目
+-- ブロック52: N1,N2,N3タブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5725,7 +6609,7 @@ do
 end
 
 -- ============================================================================
--- ブロック51: 情報とサポートタブ 29番目
+-- ブロック53: 情報とサポートタブ
 -- ============================================================================
 do
     local Window = _G.Window
@@ -5733,7 +6617,7 @@ do
 
     local InfoTab = Window:MakeTab({ Name = "情報とサポート", Icon = "rbxassetid://4483362458", PremiumOnly = false })
     InfoTab:AddSection({ Name = "詳細" })
-    InfoTab:AddLabel("バージョン: V0.7")
+    InfoTab:AddLabel("バージョン: V0.7.2.135")
     InfoTab:AddLabel("開発グループ: 土星グループ")
     InfoTab:AddSection({ Name = "リンク" })
     InfoTab:AddButton({ Name = "サポートサーバーに参加[ディスコードグローバル]", Callback = function()
@@ -5747,7 +6631,7 @@ do
 end
 
 -- ============================================================================
--- ブロック52: 完了通知
+-- ブロック54: 完了通知
 -- ============================================================================
 do
     local OrionLib = _G.OrionLib
@@ -5759,12 +6643,12 @@ do
     
     OrionLib:MakeNotification({
         Name = "🌸さくらhubV0.7🌸起動完了",
-        Content = "123!",
+        Content = "v0.7.2.135",
         Image = "rbxassetid://4483362458",
         Time = 5
     })
 
     print("==========================================")
-    print("🌸さくらhubV0.7🌸 少数バージョン(v0.7.2.133)")
+    print("🌸さくらhubV0.7🌸 v0.7.2.135")
     print("==========================================")
 end
