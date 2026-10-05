@@ -1,5 +1,5 @@
 -- ============================================================================
--- 🌸さくらhubV0.7🌸 (v0.7.2.140)
+-- 🌸さくらhubV0.7[JP]🌸 (v0.7.2.140)
 -- ============================================================================
 
 -- ============================================================================
@@ -117,11 +117,11 @@ do
     local Theme = _G.Theme
 
     local Window = OrionLib:MakeWindow({
-        Name = "🌸さくらhubV0.7🌸",
+        Name = "🌸さくらhubV0.7[JP]🌸",
         HidePremium = false,
         SaveConfig = false,
         IntroEnabled = true,
-        IntroText = "🌸さくらhubV0.7🌸 読み込み中...",
+        IntroText = "🌸さくらhubV0.7[JP]🌸 読み込み中...",
         ThemeColor = Theme.BackgroundColor,
         BackgroundColor = Theme.BackgroundColor,
         TextColor = Theme.TextColor
@@ -7830,12 +7830,12 @@ do
     task.wait(1)
     PlayActionSound()
     OrionLib:MakeNotification({
-        Name = "🌸さくらhubV0.7🌸起動完了",
+        Name = "🌸さくらhubV0.7[JP]🌸起動完了",
         Content = "v0.7.2.140",
         Image = "rbxassetid://4483362458",
         Time = 5
     })
     print("==========================================")
-    print("🌸さくらhubV0.7🌸 v0.7.2.140")
+    print("🌸さくらhubV0.7🌸 v0.7.2.140-JP")
     print("==========================================")
 end
