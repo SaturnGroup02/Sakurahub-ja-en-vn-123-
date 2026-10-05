@@ -7058,10 +7058,12 @@ do
     end
 
     ScriptHubTab:AddButton({ Name = "シェーダー", Callback = function() executeScript("https://rawscripts.net/raw/Universal-Script-Shader-77482", "シェーダー") end })
+    ScriptHubTab:AddButton({ Name = "シェーダー2", Callback = function() executeScript("https://raw.githubusercontent.com/randomstring0/pshade-ultimate/refs/heads/main/src/cd.lua", "シェーダー2") end })
     ScriptHubTab:AddButton({ Name = "空変え", Callback = function() executeScript("https://rawscripts.net/raw/Universal-Script-SkyBoxinjectHUB-80671", "空変え") end })
     ScriptHubTab:AddButton({ Name = "テトリス", Callback = function() executeScript("https://rawscripts.net/raw/Universal-Script-RTetris-76191", "テトリス") end })
     ScriptHubTab:AddButton({ Name = "クロスケ作v式飛行", Callback = function() executeScript("https://rawscripts.net/raw/Universal-Script-VFly-gui-and-noclip-78112", "クロスケ作v式飛行") end })
     ScriptHubTab:AddButton({ Name = "HokutoHUB", Callback = function() executeScript("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/06bb272eb235d0cee619c2d78355f62cdbe512da/HokutoHUB", "HokutoHUB") end })
+    ScriptHubTab:AddButton({ Name = "バックルームズ", Callback = function() executeScript("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/Backrooms", "バックルームズ") end })
     ScriptHubTab:AddButton({ Name = "uiを日本語に翻訳", Callback = function() executeScript("https://pastefy.app/HCUekFMV/raw", "uiを日本語に翻訳") end })
     ScriptHubTab:AddButton({ Name = "FTAP TP", Callback = function() executeScript("https://pastefy.app/pAbXnxgr/raw", "FTAP TP") end })
 end
