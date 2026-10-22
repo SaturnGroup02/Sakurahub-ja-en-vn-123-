@@ -4571,25 +4571,24 @@ do
     local OrionLib = _G.OrionLib
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local TextChatService = game:GetService("TextChatService")
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
 
     -- ========================================================================
     -- チャット送信ヘルパー
-    -- mode: "normal"（全員に通常メッセージ） / "system"（自分にだけシステムメッセージ）
     -- ========================================================================
     local function sendChatMessage(message, mode)
         mode = mode or "normal"
-
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
             local textChannels = TextChatService:WaitForChild("TextChannels")
             local generalChannel = textChannels:WaitForChild("RBXGeneral")
-
             if mode == "system" then
                 generalChannel:DisplaySystemMessage(message)
             else
                 generalChannel:SendAsync(message)
             end
         else
-            -- レガシーチャット用フォールバック
             local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
             if events then
                 local sayMessageRequest = events:FindFirstChild("SayMessageRequest")
@@ -4615,6 +4614,53 @@ do
             end
         end)
         return ok, err
+    end
+
+    -- ========================================================================
+    -- 別サーバーの JobId を取得
+    -- ========================================================================
+    local function getAnotherServerJobId()
+        local placeId = game.PlaceId
+        local currentJobId = game.JobId
+        local ok, result = pcall(function()
+            local url = string.format(
+                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
+                placeId
+            )
+            local response = game:HttpGet(url)
+            return HttpService:JSONDecode(response)
+        end)
+        if ok and result and result.data then
+            for _, server in ipairs(result.data) do
+                if server.id and server.id ~= currentJobId then
+                    return server.id
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ========================================================================
+    -- 別サーバーへテレポート
+    -- ========================================================================
+    local function teleportToAnotherServer()
+        local targetJobId = getAnotherServerJobId()
+        local localPlayer = Players.LocalPlayer
+        if targetJobId then
+            local ok = pcall(function()
+                local teleportOptions = Instance.new("TeleportOptions")
+                teleportOptions.ServerInstanceId = targetJobId
+                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, teleportOptions)
+            end)
+            if ok then
+                return true
+            end
+        end
+        -- フォールバック：Roblox が自動で別サーバーを選んでくれる
+        pcall(function()
+            TeleportService:Teleport(game.PlaceId, localPlayer)
+        end)
+        return false
     end
 
     -- ========================================================================
@@ -4646,7 +4692,6 @@ do
                 Content = "35回連続実行を開始します...",
                 Time = 3
             })
-
             task.spawn(function()
                 local ok, err = runCrashScript()
                 if ok then
@@ -4669,14 +4714,11 @@ do
     })
 
     -- ========================================================================
-    -- 新規：カウントダウン
-    -- 流れ：
-    --   1. "SakuraHUB-by-Nuked" をチャット送信
-    --   2. 少し待って、クラッシュスクリプト実行を開始
-    --   3. "5" → "4" → "3" → "2" を1秒間隔でチャット送信
+    -- サーバークラッシュオートモード
+    -- カウントダウン → 「1」のタイミングでクラッシュ + 別サーバーへ
     -- ========================================================================
     CrashTab:AddButton({
-        Name = "⏱ カウントダウン",
+        Name = "サーバークラッシュオートモード",
         Callback = function()
             PlayActionSound()
 
@@ -4685,10 +4727,37 @@ do
                 pcall(function() sendChatMessage("SakuraHUB-by-Nuked", "normal") end)
                 task.wait(0.8)
 
-                -- 2. クラッシュスクリプト開始（5のあたりで実行）
+                -- 2. カウントダウン送信
+                pcall(function() sendChatMessage("5", "normal") end)
+                task.wait(1)
+                pcall(function() sendChatMessage("4", "normal") end)
+                task.wait(1)
+                pcall(function() sendChatMessage("3", "normal") end)
+                task.wait(1)
+                pcall(function() sendChatMessage("2", "normal") end)
+                task.wait(1)
+
+                -- 3. 「1」を送信した瞬間
+                pcall(function() sendChatMessage("1", "normal") end)
+
+                -- 4. テレポートを先に発火（クラッシュの影響を受けないよう1フレーム先行）
+                task.spawn(function()
+                    teleportToAnotherServer()
+                end)
+
+                -- 5. 1フレーム待ってからクラッシュスクリプトを実行
+                task.wait(0.1)
+
                 task.spawn(function()
                     local ok, err = runCrashScript()
-                    if not ok then
+                    if ok then
+                        PlayActionSound()
+                        OrionLib:MakeNotification({
+                            Name = "完了",
+                            Content = "カウントダウン完了・クラッシュ実行・別サーバーへ移動中",
+                            Time = 4
+                        })
+                    else
                         PlayErrorSound()
                         OrionLib:MakeNotification({
                             Name = "エラー",
@@ -4697,28 +4766,6 @@ do
                         })
                     end
                 end)
-
-                task.wait(0.2)
-
-                -- 3. カウントダウン送信（5 → 4 → 3 → 2）
-                pcall(function() sendChatMessage("5", "normal") end)
-                task.wait(1)
-
-                pcall(function() sendChatMessage("4", "normal") end)
-                task.wait(1)
-
-                pcall(function() sendChatMessage("3", "normal") end)
-                task.wait(1)
-
-                pcall(function() sendChatMessage("2", "normal") end)
-
-                -- 4. 完了通知
-                PlayActionSound()
-                OrionLib:MakeNotification({
-                    Name = "カウントダウン完了",
-                    Content = "クラッシュスクリプトを実行しました",
-                    Time = 4
-                })
             end)
         end
     })
