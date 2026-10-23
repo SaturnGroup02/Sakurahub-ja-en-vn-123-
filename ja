@@ -4579,7 +4579,7 @@ do
     -- 定数
     -- ========================================================================
     local CRASH_URL     = "https://pastefy.app/sPciZuXM/raw"   -- クラッシュ単独（35回連続）
-    local AUTOLOGIC_URL = "https://pastefy.app/uPime032/raw"   -- オート無限ループ用（自己完結）
+    local AUTOLOGIC_URL = "https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/server-crash"   -- オート無限ループ用（自己完結）
     local CHAT_HEADER   = "SakuraHUB-by-Nuked"
     local CRASH_LOOP_COUNT = 35
 
